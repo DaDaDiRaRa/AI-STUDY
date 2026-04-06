@@ -182,7 +182,7 @@ export default function App() {
     }
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '' });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `You are a professional Architectural Photographer and Prompt Engineer. 
@@ -222,7 +222,7 @@ export default function App() {
     }
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '' });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `You are a professional Architectural Quality Inspector. Expand the user's negative prompt into a comprehensive list of technical rendering artifacts to avoid. 
@@ -319,7 +319,7 @@ export default function App() {
     setError(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '' });
       const currentSeed = seedMode === 'fixed' ? seedValue : Math.floor(Math.random() * 2147483647);
       if (seedMode === 'random') setLastUsedSeed(currentSeed);
 
@@ -446,7 +446,7 @@ export default function App() {
     setError(null);
     
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '' });
       
       // Extract mask from canvas (matching current canvas size)
       const maskBase64 = canvasRef.current.toDataURL('image/png').split(',')[1];
@@ -492,7 +492,7 @@ export default function App() {
     setError(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '' });
       const base64 = resultImage.split(',')[1];
 
       const response = await ai.models.generateContent({
