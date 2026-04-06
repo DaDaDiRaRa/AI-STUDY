@@ -23,7 +23,8 @@ import {
   Maximize2,
   Undo2,
   RotateCcw,
-  Shield
+  Shield,
+  Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -98,7 +99,17 @@ const STYLE_PRESETS = [
   }
 ];
 
+// --- Global Config & Helpers ---
+const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+const ai = new GoogleGenAI({ apiKey: API_KEY });
+
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return sessionStorage.getItem('site_auth') === 'true';
+  });
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
   const [hasKey, setHasKey] = useState<boolean | null>(null);
   const [controlNetImg, setControlNetImg] = useState<ImageFile | null>(null);
   const [ipAdapterImg, setIpAdapterImg] = useState<ImageFile | null>(null);
@@ -164,6 +175,18 @@ export default function App() {
     }
   };
 
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordInput === '9698') {
+      setIsAuthenticated(true);
+      sessionStorage.setItem('site_auth', 'true');
+      setPasswordError('');
+    } else {
+      setPasswordError('Incorrect password');
+      setPasswordInput('');
+    }
+  };
+
   const toggleMode = (mode: string) => {
     setSelectedModes(prev => 
       prev.includes(mode) 
@@ -182,7 +205,6 @@ export default function App() {
     }
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '' });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `You are a professional Architectural Photographer and Prompt Engineer. 
@@ -222,7 +244,6 @@ export default function App() {
     }
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '' });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `You are a professional Architectural Quality Inspector. Expand the user's negative prompt into a comprehensive list of technical rendering artifacts to avoid. 
@@ -319,7 +340,6 @@ export default function App() {
     setError(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '' });
       const currentSeed = seedMode === 'fixed' ? seedValue : Math.floor(Math.random() * 2147483647);
       if (seedMode === 'random') setLastUsedSeed(currentSeed);
 
@@ -446,8 +466,6 @@ export default function App() {
     setError(null);
     
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '' });
-      
       // Extract mask from canvas (matching current canvas size)
       const maskBase64 = canvasRef.current.toDataURL('image/png').split(',')[1];
       
@@ -492,7 +510,6 @@ export default function App() {
     setError(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '' });
       const base64 = resultImage.split(',')[1];
 
       const response = await ai.models.generateContent({
@@ -559,6 +576,43 @@ export default function App() {
     setShowComparison(false);
     setShowNegativeComparison(false);
   };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4 font-sans">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 w-full max-w-md shadow-2xl">
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-4">
+              <Lock className="w-8 h-8 text-blue-400" />
+            </div>
+            <h1 className="text-2xl font-bold text-zinc-100">Access Restricted</h1>
+            <p className="text-zinc-400 text-sm mt-2 text-center">Please enter the password to access the Architectural Rendering Engine.</p>
+          </div>
+          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            <div>
+              <input
+                type="password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="Enter password"
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-zinc-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-center tracking-widest"
+                autoFocus
+              />
+            </div>
+            {passwordError && (
+              <p className="text-red-400 text-sm text-center">{passwordError}</p>
+            )}
+            <button
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-xl transition-colors"
+            >
+              Enter
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   if (hasKey === null) {
     return (
