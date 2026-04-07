@@ -84,18 +84,18 @@ const STYLE_PRESETS = [
     negative: '(worst quality:1.4), (low quality:1.4), daylight, sun, bright sky, flat lighting, overexposed, low contrast, noisy, grainy.'
   },
   {
-    id: 'sketch',
-    name: 'Architectural Sketch',
-    icon: '✏️',
-    positive: '(Masterpiece:1.3), architectural hand-drawn sketch, charcoal and graphite, fine lines, artistic shading, professional drafting style, white paper texture, minimalist, elegant, clean strokes, expressive, conceptual.',
-    negative: '(worst quality:1.4), (low quality:1.4), photorealistic, 3d render, color, messy, blurry, distorted, low resolution, digital artifacts.'
+    id: 'perspective',
+    name: 'Eye-Level',
+    icon: '🚶',
+    positive: '(Masterpiece:1.3), (photorealistic:1.4), Professional architectural exterior photography, eye-level perspective, human scale, street level view, corrected vertical lines, highly detailed facade, realistic street-side vegetation, 35mm lens, high dynamic range.',
+    negative: '(worst quality:1.4), (low quality:1.4), bird view, high angle, looking down, interior, distorted lines, low-resolution, blurry trees, unrealistic shadows.'
   },
   {
-    id: 'interior',
-    name: 'Interior Cozy',
-    icon: '🏠',
-    positive: '(Masterpiece:1.3), (photorealistic:1.4), best quality, high quality, Ultra-detailed, 8k resolution, interior architecture photography, cozy atmosphere, soft natural light through windows, warm wood textures, plush fabrics, elegant furniture, indoor plants, lived-in feel, high-end interior design.',
-    negative: '(worst quality:1.4), (low quality:1.4), exterior, cold, harsh lighting, empty, clinical, distorted furniture, messy, low resolution.'
+    id: 'birdseye',
+    name: 'Birds-Eye',
+    icon: '🦅',
+    positive: '(Masterpiece:1.3), (photorealistic:1.4), High-angle aerial photography, bird’s-eye view, architectural masterplan perspective, expansive site context, looking down at the building, miniature effect, realistic surrounding urban fabric and lush landscaping, volumetric lighting.',
+    negative: '(worst quality:1.4), (low quality:1.4), eye level, street view, interior, low angle view, looking up, distorted perspective, blurry background, dark lighting.'
   }
 ];
 
@@ -355,12 +355,12 @@ export default function App() {
 
       // NODE-based pipeline construction
       const parts: any[] = [
-        { text: "Architectural Rendering Engine Mode. High-fidelity output required. Strictly preserve the geometry and structural lines of the base image." },
-        { text: "NODE 1 [Structure]:" },
+        { text: "Architectural Rendering Engine Mode. High-fidelity output required. Force perfect vertical lines alignment, tilt-shift lens effect, and high-end PBR material rendering." },
+        { text: "NODE 1 [Structure]: Strictly preserve all architectural structural lines from the base image. Do not warp windows or columns." },
         { inlineData: { data: controlNetImg.base64, mimeType: controlNetImg.file.type } },
         ipAdapterImg && { text: `NODE 2 [Style]: ${getStrengthText(ipAdapterStrength, 'style')}` },
         ipAdapterImg && { inlineData: { data: ipAdapterImg.base64, mimeType: ipAdapterImg.file.type } },
-        florenceImg && { text: `NODE 3 [Context]: ${getStrengthText(florenceStrength, 'context')}` },
+        florenceImg && { text: `NODE 3 [Context]: ${getStrengthText(florenceStrength, 'context')} Prioritize photorealistic vegetation and realistic atmospheric sky.` },
         florenceImg && { inlineData: { data: florenceImg.base64, mimeType: florenceImg.file.type } },
         { text: `POSITIVE: ${positivePrompt} --mode ${selectedModes.join(' ')}\nNEGATIVE: ${negativePrompt}` }
       ].filter(Boolean);
@@ -655,7 +655,7 @@ export default function App() {
             <div className="w-8 h-8 bg-zinc-100 rounded flex items-center justify-center">
               <Building2 className="w-5 h-5 text-zinc-900" />
             </div>
-            <h1 className="text-[22px] font-[Arial] font-semibold tracking-tight">Kunwon AI <span className="text-xs text-zinc-500 font-mono ml-2 border border-zinc-800 px-2 py-0.5 rounded">COMFY_LOGIC_V1</span></h1>
+            <h1 className="text-[22px] font-[Arial] font-semibold tracking-tight">Kunwon AI <span className="text-xs text-zinc-500 font-mono ml-2 border border-zinc-800 px-2 py-0.5 rounded">for exterior image</span></h1>
           </div>
           <div className="flex items-center gap-4">
             <button 
