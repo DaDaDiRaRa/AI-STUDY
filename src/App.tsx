@@ -177,7 +177,7 @@ export default function App() {
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === '9698') {
+    if (passwordInput === '0908') {
       setIsAuthenticated(true);
       sessionStorage.setItem('site_auth', 'true');
       setPasswordError('');
