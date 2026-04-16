@@ -7,7 +7,7 @@ import PromptPanel from './components/PromptPanel';
 import PreviewCanvas from './components/PreviewCanvas';
 
 // --- Global Config ---
-const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+const API_KEY = process.env.GEMINI_API_KEY || '';
 const genAI = new GoogleGenAI({ apiKey: API_KEY });
 
 // --- 브라우저 내부: 이미지 자동 추출기 (Method A) ---
@@ -160,16 +160,28 @@ export default function App() {
       parts.push({ text: `POSITIVE PROMPT: ${positivePrompt} \nNEGATIVE PROMPT: ${negativePrompt}` });
 
       const response = await genAI.models.generateContent({
-        model: 'gemini-3.1-flash-image-preview',
+        model: 'gemini-2.5-flash-image',
         contents: { parts },
-        config: { seed: currentSeed, temperature } as any
+        config: { 
+          seed: currentSeed, 
+          temperature,
+          imageConfig: {
+            aspectRatio: "1:1",
+          }
+        } as any
       });
 
-      const generatedImgPart = response.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData;
+      const candidate = response.candidates?.[0];
+      if (candidate?.finishReason === 'SAFETY') {
+        throw new Error("Generation blocked by safety filters. Please try a different prompt or image.");
+      }
+
+      const generatedImgPart = candidate?.content?.parts?.find((p: any) => p.inlineData)?.inlineData;
       if (generatedImgPart) {
         setResultImage(`data:${generatedImgPart.mimeType};base64,${generatedImgPart.data}`);
       } else {
-        throw new Error("Generation failed.");
+        console.error("Full response:", response);
+        throw new Error("Generation failed. No image was returned by the model.");
       }
     } catch (err: any) {
       console.error(err);

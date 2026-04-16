@@ -124,7 +124,7 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   const comparisonValue = propsComparisonValue !== undefined ? propsComparisonValue : internalComparisonValue;
   const setComparisonValue = propsSetComparisonValue || setInternalComparisonValue;
 
-  const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+  const API_KEY = process.env.GEMINI_API_KEY || '';
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
   useEffect(() => {

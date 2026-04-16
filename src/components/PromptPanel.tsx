@@ -100,7 +100,7 @@ const PromptPanel: React.FC<PromptPanelProps> = ({
   const isImproving = propsIsImproving !== undefined ? propsIsImproving : internalIsImproving;
   const isImprovingNegative = propsIsImprovingNegative !== undefined ? propsIsImprovingNegative : internalIsImprovingNegative;
 
-  const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+  const API_KEY = process.env.GEMINI_API_KEY || '';
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
   const handleImprovePrompt = async () => {
