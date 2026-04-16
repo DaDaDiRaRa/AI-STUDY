@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Image as ImageIcon, 
@@ -12,6 +12,7 @@ import {
   Maximize2, 
   Info 
 } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
 
 interface ImageFile {
   file: File;
@@ -23,67 +24,280 @@ interface ImageFile {
 
 interface PreviewCanvasProps {
   resultImage: string | null;
-  isEditing: boolean;
-  setIsEditing: (val: boolean) => void;
-  setShowComparison: (val: boolean) => void;
-  history: string[];
-  handleUndo: () => void;
-  handleDownload: () => void;
-  editPrompt: string;
-  setEditPrompt: (val: string) => void;
-  editPromptRef: React.RefObject<HTMLTextAreaElement>;
-  brushSize: number;
-  setBrushSize: (val: number) => void;
-  brushColor: string;
-  setBrushColor: (val: string) => void;
-  clearMask: () => void;
-  applyInpainting: () => Promise<void>;
-  isApplyingEdit: boolean;
-  handleUpscale: (target: string) => Promise<void>;
-  isUpscaling: boolean;
-  upscaleTarget: string | null;
-  canvasRef: React.RefObject<HTMLCanvasElement>;
-  canvasSize: { width: number; height: number };
-  startDrawing: (e: React.MouseEvent | React.TouchEvent) => void;
-  draw: (e: React.MouseEvent | React.TouchEvent) => void;
-  stopDrawing: () => void;
-  controlNetImg: ImageFile | null;
-  comparisonValue: number;
-  setComparisonValue: (val: number) => void;
-  isGenerating: boolean;
+  setResultImage?: (val: string | null) => void;
+  isEditing?: boolean;
+  setIsEditing?: (val: boolean) => void;
+  setShowComparison?: (val: boolean) => void;
+  history?: string[];
+  handleUndo?: () => void;
+  handleDownload?: () => void;
+  editPrompt?: string;
+  setEditPrompt?: (val: string) => void;
+  editPromptRef?: React.RefObject<HTMLTextAreaElement>;
+  brushSize?: number;
+  setBrushSize?: (val: number) => void;
+  brushColor?: string;
+  setBrushColor?: (val: string) => void;
+  clearMask?: () => void;
+  applyInpainting?: () => Promise<void>;
+  isApplyingEdit?: boolean;
+  handleUpscale?: (target: string) => Promise<void>;
+  isUpscaling?: boolean;
+  upscaleTarget?: string | null;
+  canvasRef?: React.RefObject<HTMLCanvasElement>;
+  canvasSize?: { width: number; height: number };
+  startDrawing?: (e: React.MouseEvent | React.TouchEvent) => void;
+  draw?: (e: React.MouseEvent | React.TouchEvent) => void;
+  stopDrawing?: () => void;
+  controlNetImg?: ImageFile | null;
+  comparisonValue?: number;
+  setComparisonValue?: (val: number) => void;
+  isGenerating?: boolean;
 }
 
-export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
+const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   resultImage,
-  isEditing,
-  setIsEditing,
-  setShowComparison,
-  history,
-  handleUndo,
-  handleDownload,
-  editPrompt,
-  setEditPrompt,
-  editPromptRef,
-  brushSize,
-  setBrushSize,
-  brushColor,
-  setBrushColor,
-  clearMask,
-  applyInpainting,
-  isApplyingEdit,
-  handleUpscale,
-  isUpscaling,
-  upscaleTarget,
-  canvasRef,
-  canvasSize,
-  startDrawing,
-  draw,
-  stopDrawing,
+  setResultImage,
+  isEditing: propsIsEditing,
+  setIsEditing: propsSetIsEditing,
+  setShowComparison: propsSetShowComparison,
+  history: propsHistory,
+  handleUndo: propsHandleUndo,
+  handleDownload: propsHandleDownload,
+  editPrompt: propsEditPrompt,
+  setEditPrompt: propsSetEditPrompt,
+  editPromptRef: propsEditPromptRef,
+  brushSize: propsBrushSize,
+  setBrushSize: propsSetBrushSize,
+  brushColor: propsBrushColor,
+  setBrushColor: propsSetBrushColor,
+  clearMask: propsClearMask,
+  applyInpainting: propsApplyInpainting,
+  isApplyingEdit: propsIsApplyingEdit,
+  handleUpscale: propsHandleUpscale,
+  isUpscaling: propsIsUpscaling,
+  upscaleTarget: propsUpscaleTarget,
+  canvasRef: propsCanvasRef,
+  canvasSize: propsCanvasSize,
+  startDrawing: propsStartDrawing,
+  draw: propsDraw,
+  stopDrawing: propsStopDrawing,
   controlNetImg,
-  comparisonValue,
-  setComparisonValue,
-  isGenerating,
+  comparisonValue: propsComparisonValue,
+  setComparisonValue: propsSetComparisonValue,
+  isGenerating = false,
 }) => {
+  // Internal state fallbacks
+  const [internalIsEditing, setInternalIsEditing] = useState(false);
+  const [internalHistory, setInternalHistory] = useState<string[]>([]);
+  const [internalEditPrompt, setInternalEditPrompt] = useState('');
+  const [internalBrushSize, setInternalBrushSize] = useState(30);
+  const [internalBrushColor, setInternalBrushColor] = useState('rgba(57, 255, 20, 0.4)');
+  const [internalIsApplyingEdit, setInternalIsApplyingEdit] = useState(false);
+  const [internalIsUpscaling, setInternalIsUpscaling] = useState(false);
+  const [internalUpscaleTarget, setInternalUpscaleTarget] = useState<string | null>(null);
+  const [internalComparisonValue, setInternalComparisonValue] = useState(50);
+  const [internalShowComparison, setInternalShowComparison] = useState(false);
+  const [internalCanvasSize, setInternalCanvasSize] = useState({ width: 1024, height: 1024 });
+  const [isDrawing, setIsDrawing] = useState(false);
+
+  const internalCanvasRef = useRef<HTMLCanvasElement>(null);
+  const internalEditPromptRef = useRef<HTMLTextAreaElement>(null);
+
+  const isEditing = propsIsEditing !== undefined ? propsIsEditing : internalIsEditing;
+  const setIsEditing = propsSetIsEditing || setInternalIsEditing;
+  const setShowComparison = propsSetShowComparison || setInternalShowComparison;
+  const history = propsHistory !== undefined ? propsHistory : internalHistory;
+  const setHistory = setInternalHistory;
+  const editPrompt = propsEditPrompt !== undefined ? propsEditPrompt : internalEditPrompt;
+  const setEditPrompt = propsSetEditPrompt || setInternalEditPrompt;
+  const editPromptRef = propsEditPromptRef || internalEditPromptRef;
+  const brushSize = propsBrushSize !== undefined ? propsBrushSize : internalBrushSize;
+  const setBrushSize = propsSetBrushSize || setInternalBrushSize;
+  const brushColor = propsBrushColor !== undefined ? propsBrushColor : internalBrushColor;
+  const setBrushColor = propsSetBrushColor || setInternalBrushColor;
+  const isApplyingEdit = propsIsApplyingEdit !== undefined ? propsIsApplyingEdit : internalIsApplyingEdit;
+  const isUpscaling = propsIsUpscaling !== undefined ? propsIsUpscaling : internalIsUpscaling;
+  const upscaleTarget = propsUpscaleTarget !== undefined ? propsUpscaleTarget : internalUpscaleTarget;
+  const canvasRef = propsCanvasRef || internalCanvasRef;
+  const canvasSize = propsCanvasSize !== undefined ? propsCanvasSize : internalCanvasSize;
+  const comparisonValue = propsComparisonValue !== undefined ? propsComparisonValue : internalComparisonValue;
+  const setComparisonValue = propsSetComparisonValue || setInternalComparisonValue;
+
+  const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+  useEffect(() => {
+    if (controlNetImg?.width && controlNetImg?.height) {
+      const ratio = controlNetImg.width / controlNetImg.height;
+      setInternalCanvasSize({
+        width: 1024,
+        height: 1024 / ratio
+      });
+    }
+  }, [controlNetImg]);
+
+  const handleUndo = () => {
+    if (propsHandleUndo) return propsHandleUndo();
+    if (history.length === 0 || !setResultImage) return;
+    const newHistory = [...history];
+    const previousImage = newHistory.pop();
+    if (previousImage) {
+      setResultImage(previousImage);
+      setHistory(newHistory);
+    }
+  };
+
+  const handleDownload = () => {
+    if (propsHandleDownload) return propsHandleDownload();
+    if (!resultImage) return;
+    const link = document.createElement('a');
+    link.href = resultImage;
+    link.download = 'architectural-rendering.png';
+    link.click();
+  };
+
+  const clearMask = () => {
+    if (propsClearMask) return propsClearMask();
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx?.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  };
+
+  const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
+    if (propsStartDrawing) return propsStartDrawing(e);
+    setIsDrawing(true);
+    draw(e);
+  };
+
+  const stopDrawing = () => {
+    if (propsStopDrawing) return propsStopDrawing();
+    setIsDrawing(false);
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx?.beginPath();
+    }
+  };
+
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    if (propsDraw) return propsDraw(e);
+    if (!isDrawing || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    let clientX, clientY;
+
+    if ('touches' in e) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+
+    const x = (clientX - rect.left) * (canvas.width / rect.width);
+    const y = (clientY - rect.top) * (canvas.height / rect.height);
+
+    ctx.lineWidth = brushSize;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = brushColor;
+    ctx.globalCompositeOperation = 'source-over';
+
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const applyInpainting = async () => {
+    if (propsApplyInpainting) return propsApplyInpainting();
+    if (!resultImage || !canvasRef.current || !setResultImage) return;
+    setInternalIsApplyingEdit(true);
+    
+    try {
+      const maskBase64 = canvasRef.current.toDataURL('image/png').split(',')[1];
+      
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: {
+          parts: [
+            { inlineData: { data: resultImage.split(',')[1], mimeType: 'image/png' } },
+            { inlineData: { data: maskBase64, mimeType: 'image/png' } },
+            { text: editPrompt || "Refine materials and lighting in the masked area." }
+          ]
+        },
+        config: {
+          editMode: 'inpainting-modify',
+          seed: 42
+        } as any
+      });
+
+      const editedImgPart = response.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData;
+      if (editedImgPart) {
+        setHistory(prev => [...prev, resultImage]);
+        const url = `data:${editedImgPart.mimeType};base64,${editedImgPart.data}`;
+        setResultImage(url);
+        setIsEditing(false);
+        clearMask();
+      }
+    } catch (err: any) {
+      console.error("Inpainting error:", err);
+    } finally {
+      setInternalIsApplyingEdit(false);
+    }
+  };
+
+  const handleUpscale = async (resolution: string) => {
+    if (propsHandleUpscale) return propsHandleUpscale(resolution);
+    if (!resultImage || internalIsUpscaling || !setResultImage) return;
+    
+    setInternalIsUpscaling(true);
+    setInternalUpscaleTarget(resolution);
+
+    try {
+      const base64 = resultImage.split(',')[1];
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: {
+          parts: [
+            { inlineData: { data: base64, mimeType: 'image/png' } },
+            { text: `Enhance and upscale this architectural rendering to ${resolution} resolution. Maintain all details, textures, and lighting perfectly while increasing clarity and sharpness.` }
+          ]
+        },
+        config: {
+          imageConfig: {
+            imageSize: resolution as any
+          }
+        }
+      });
+
+      let upscaledImg = null;
+      for (const part of response.candidates?.[0]?.content?.parts || []) {
+        if (part.inlineData) {
+          upscaledImg = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+          break;
+        }
+      }
+
+      if (upscaledImg) {
+        setHistory(prev => [...prev, resultImage]);
+        setResultImage(upscaledImg);
+      }
+    } catch (err: any) {
+      console.error("Upscale error:", err);
+    } finally {
+      setInternalIsUpscaling(false);
+      setInternalUpscaleTarget(null);
+    }
+  };
+
   return (
     <div className="lg:col-span-5 relative">
       <div className="sticky top-24">
@@ -348,3 +562,5 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     </div>
   );
 };
+
+export default PreviewCanvas;

@@ -4,18 +4,20 @@ import { Tooltip } from './Tooltip';
 
 interface SettingsPanelProps {
   selectedModes: string[];
-  toggleMode: (mode: string) => void;
+  setSelectedModes?: (modes: string[]) => void;
+  toggleMode?: (mode: string) => void;
   temperature: number;
   setTemperature: (val: number) => void;
   seedMode: 'random' | 'fixed';
   setSeedMode: (mode: 'random' | 'fixed') => void;
   seedValue: number;
   setSeedValue: (val: number) => void;
-  lastUsedSeed: number | null;
+  lastUsedSeed?: number | null;
 }
 
-export const SettingsPanel: React.FC<SettingsPanelProps> = ({
+const SettingsPanel: React.FC<SettingsPanelProps> = ({
   selectedModes,
+  setSelectedModes,
   toggleMode,
   temperature,
   setTemperature,
@@ -23,8 +25,20 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   setSeedMode,
   seedValue,
   setSeedValue,
-  lastUsedSeed,
+  lastUsedSeed = null,
 }) => {
+  const handleToggleMode = (mode: string) => {
+    if (toggleMode) {
+      toggleMode(mode);
+    } else if (setSelectedModes) {
+      setSelectedModes(
+        selectedModes.includes(mode)
+          ? selectedModes.filter((m) => m !== mode)
+          : [...selectedModes, mode]
+      );
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       {/* Multi-Control Mode Selector */}
@@ -54,7 +68,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             return (
               <button
                 key={mode.id}
-                onClick={() => toggleMode(mode.id)}
+                onClick={() => handleToggleMode(mode.id)}
                 className={`py-2 px-3 text-[10px] font-bold uppercase tracking-tighter rounded-lg border transition-all flex items-center justify-center gap-2 ${colorClasses}`}
               >
                 <div className={`w-1.5 h-1.5 rounded-full ${isActive ? {
@@ -170,3 +184,5 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     </div>
   );
 };
+
+export default SettingsPanel;

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Palette, Info, Sparkles, Loader2, Shield } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
 import { Tooltip } from './Tooltip';
 
 interface StylePreset {
@@ -10,45 +11,169 @@ interface StylePreset {
   negative: string;
 }
 
+const STYLE_PRESETS: StylePreset[] = [
+  {
+    id: 'sunny',
+    name: 'Sunny Day',
+    icon: '☀️',
+    positive: '(Masterpiece:1.3), (photorealistic:1.4), best quality, high quality, Ultra-detailed, 8k resolution, architecture photography, bright sunny day, clear blue sky, sharp shadows, vibrant colors, realistic materials, concrete, glass, wood, lush green landscaping.',
+    negative: '(worst quality:1.4), (low quality:1.4), monochrome, flat lighting, overcast, rain, night, fog, distorted architecture, blurry, low resolution.'
+  },
+  {
+    id: 'night',
+    name: 'Night Cinematic',
+    icon: '🌙',
+    positive: '(Masterpiece:1.3), (photorealistic:1.4), best quality, high quality, Ultra-detailed, 8k resolution, architecture photography, cinematic night lighting, warm interior glow, cool exterior moonlight, long exposure, reflective surfaces, windows glowing, deep shadows, atmospheric.',
+    negative: '(worst quality:1.4), (low quality:1.4), daylight, sun, bright sky, flat lighting, overexposed, low contrast, noisy, grainy.'
+  },
+  {
+    id: 'perspective',
+    name: 'Eye-Level',
+    icon: '🚶',
+    positive: '(Masterpiece:1.3), (photorealistic:1.4), Professional architectural exterior photography, eye-level perspective, human scale, street level view, corrected vertical lines, highly detailed facade, realistic street-side vegetation, 35mm lens, high dynamic range.',
+    negative: '(worst quality:1.4), (low quality:1.4), bird view, high angle, looking down, interior, distorted lines, low-resolution, blurry trees, unrealistic shadows.'
+  },
+  {
+    id: 'birdseye',
+    name: 'Birds-Eye',
+    icon: '🦅',
+    positive: '(Masterpiece:1.3), (photorealistic:1.4), High-angle aerial photography, bird’s-eye view, architectural masterplan perspective, expansive site context, looking down at the building, miniature effect, realistic surrounding urban fabric and lush landscaping, volumetric lighting.',
+    negative: '(worst quality:1.4), (low quality:1.4), eye level, street view, interior, low angle view, looking up, distorted perspective, blurry background, dark lighting.'
+  }
+];
+
 interface PromptPanelProps {
   positivePrompt: string;
   setPositivePrompt: (val: string) => void;
   negativePrompt: string;
   setNegativePrompt: (val: string) => void;
-  originalPositivePrompt: string | null;
-  setOriginalPositivePrompt: (val: string | null) => void;
-  originalNegativePrompt: string | null;
-  setOriginalNegativePrompt: (val: string | null) => void;
-  showComparison: boolean;
-  setShowComparison: (val: boolean) => void;
-  showNegativeComparison: boolean;
-  setShowNegativeComparison: (val: boolean) => void;
-  handleImprovePrompt: () => Promise<void>;
-  handleImproveNegativePrompt: () => Promise<void>;
-  isImproving: boolean;
-  isImprovingNegative: boolean;
-  stylePresets: StylePreset[];
+  originalPositivePrompt?: string | null;
+  setOriginalPositivePrompt?: (val: string | null) => void;
+  originalNegativePrompt?: string | null;
+  setOriginalNegativePrompt?: (val: string | null) => void;
+  showComparison?: boolean;
+  setShowComparison?: (val: boolean) => void;
+  showNegativeComparison?: boolean;
+  setShowNegativeComparison?: (val: boolean) => void;
+  handleImprovePrompt?: () => Promise<void>;
+  handleImproveNegativePrompt?: () => Promise<void>;
+  isImproving?: boolean;
+  isImprovingNegative?: boolean;
+  stylePresets?: StylePreset[];
 }
 
-export const PromptPanel: React.FC<PromptPanelProps> = ({
+const PromptPanel: React.FC<PromptPanelProps> = ({
   positivePrompt,
   setPositivePrompt,
   negativePrompt,
   setNegativePrompt,
-  originalPositivePrompt,
-  setOriginalPositivePrompt,
-  originalNegativePrompt,
-  setOriginalNegativePrompt,
-  showComparison,
-  setShowComparison,
-  showNegativeComparison,
-  setShowNegativeComparison,
-  handleImprovePrompt,
-  handleImproveNegativePrompt,
-  isImproving,
-  isImprovingNegative,
-  stylePresets,
+  originalPositivePrompt: propsOriginalPositivePrompt,
+  setOriginalPositivePrompt: propsSetOriginalPositivePrompt,
+  originalNegativePrompt: propsOriginalNegativePrompt,
+  setOriginalNegativePrompt: propsSetOriginalNegativePrompt,
+  showComparison: propsShowComparison,
+  setShowComparison: propsSetShowComparison,
+  showNegativeComparison: propsShowNegativeComparison,
+  setShowNegativeComparison: propsSetShowNegativeComparison,
+  handleImprovePrompt: propsHandleImprovePrompt,
+  handleImproveNegativePrompt: propsHandleImproveNegativePrompt,
+  isImproving: propsIsImproving,
+  isImprovingNegative: propsIsImprovingNegative,
+  stylePresets = STYLE_PRESETS,
 }) => {
+  // Internal state fallbacks
+  const [internalOriginalPositivePrompt, setInternalOriginalPositivePrompt] = useState<string | null>(null);
+  const [internalOriginalNegativePrompt, setInternalOriginalNegativePrompt] = useState<string | null>(null);
+  const [internalShowComparison, setInternalShowComparison] = useState(false);
+  const [internalShowNegativeComparison, setInternalShowNegativeComparison] = useState(false);
+  const [internalIsImproving, setInternalIsImproving] = useState(false);
+  const [internalIsImprovingNegative, setInternalIsImprovingNegative] = useState(false);
+
+  const originalPositivePrompt = propsOriginalPositivePrompt !== undefined ? propsOriginalPositivePrompt : internalOriginalPositivePrompt;
+  const setOriginalPositivePrompt = propsSetOriginalPositivePrompt || setInternalOriginalPositivePrompt;
+  const originalNegativePrompt = propsOriginalNegativePrompt !== undefined ? propsOriginalNegativePrompt : internalOriginalNegativePrompt;
+  const setOriginalNegativePrompt = propsSetOriginalNegativePrompt || setInternalOriginalNegativePrompt;
+  const showComparison = propsShowComparison !== undefined ? propsShowComparison : internalShowComparison;
+  const setShowComparison = propsSetShowComparison || setInternalShowComparison;
+  const showNegativeComparison = propsShowNegativeComparison !== undefined ? propsShowNegativeComparison : internalShowNegativeComparison;
+  const setShowNegativeComparison = propsSetShowNegativeComparison || setInternalShowNegativeComparison;
+  const isImproving = propsIsImproving !== undefined ? propsIsImproving : internalIsImproving;
+  const isImprovingNegative = propsIsImprovingNegative !== undefined ? propsIsImprovingNegative : internalIsImprovingNegative;
+
+  const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+  const handleImprovePrompt = async () => {
+    if (propsHandleImprovePrompt) return propsHandleImprovePrompt();
+    if (!positivePrompt.trim() || internalIsImproving) return;
+    
+    setInternalIsImproving(true);
+    if (!originalPositivePrompt) {
+      setOriginalPositivePrompt(positivePrompt);
+    }
+
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `You are a professional Architectural Photographer and Prompt Engineer. 
+        Your task is to translate (if Korean) and enrich the following architectural prompt into a high-end, professional English prompt.
+        
+        [Guidelines]:
+        1. Preserve the core architectural building form as the centerpiece.
+        2. Enrich the scene with realistic atmospheric details: cinematic sky (sunset, overcast, etc.), realistic vegetation (lush trees, grass), high-quality designer furniture, and subtle people for scale.
+        3. Use professional photography terms (e.g., "corrected verticals", "soft global illumination", "high dynamic range").
+        4. Ensure the output is a single, cohesive, ultra-detailed prompt block.
+        5. Do NOT include any conversational text, only the prompt.
+        
+        [Input Prompt]:
+        ${positivePrompt}`,
+      });
+
+      const improved = response.text?.trim();
+      if (improved) {
+        setPositivePrompt(improved);
+        setShowComparison(true);
+      }
+    } catch (err: any) {
+      console.error("Improvement error:", err);
+    } finally {
+      setInternalIsImproving(false);
+    }
+  };
+
+  const handleImproveNegativePrompt = async () => {
+    if (propsHandleImproveNegativePrompt) return propsHandleImproveNegativePrompt();
+    if (!negativePrompt.trim() || internalIsImprovingNegative) return;
+    
+    setInternalIsImprovingNegative(true);
+    if (!originalNegativePrompt) {
+      setOriginalNegativePrompt(negativePrompt);
+    }
+
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `You are a professional Architectural Quality Inspector. Expand the user's negative prompt into a comprehensive list of technical rendering artifacts to avoid. 
+        - Focus on: distorted perspectives, non-physical lighting, unrealistic material tiling, overexposed highlights, blurry distant buildings, and warped geometry.
+        - Translate Korean to English if necessary.
+        - Output only the improved negative prompt string.
+        
+        [Input Negative Prompt]:
+        ${negativePrompt}`,
+      });
+
+      const improved = response.text?.trim();
+      if (improved) {
+        setNegativePrompt(improved);
+        setShowNegativeComparison(true);
+      }
+    } catch (err: any) {
+      console.error("Negative improvement error:", err);
+    } finally {
+      setInternalIsImprovingNegative(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Style Presets */}
@@ -210,3 +335,5 @@ export const PromptPanel: React.FC<PromptPanelProps> = ({
     </div>
   );
 };
+
+export default PromptPanel;

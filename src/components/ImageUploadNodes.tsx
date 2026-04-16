@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Upload, Info, Layers, Palette, ScanText, X } from 'lucide-react';
+import { useDropzone } from 'react-dropzone';
 import { Tooltip } from './Tooltip';
 
 interface ImageFile {
@@ -13,47 +14,69 @@ interface ImageFile {
 
 interface ImageUploadNodesProps {
   controlNetImg: ImageFile | null;
+  setControlNetImg: (img: ImageFile | null) => void;
   ipAdapterImg: ImageFile | null;
+  setIpAdapterImg: (img: ImageFile | null) => void;
   florenceImg: ImageFile | null;
-  getRootCN: any;
-  getInputCN: any;
-  isDragCN: boolean;
-  getRootIP: any;
-  getInputIP: any;
-  isDragIP: boolean;
-  getRootFL: any;
-  getInputFL: any;
-  isDragFL: boolean;
-  clearControlNet: () => void;
-  clearIPAdapter: () => void;
-  clearFlorence: () => void;
-  ipAdapterStrength: number;
-  setIpAdapterStrength: (val: number) => void;
-  florenceStrength: number;
-  setFlorenceStrength: (val: number) => void;
+  setFlorenceImg: (img: ImageFile | null) => void;
+  ipAdapterStrength?: number;
+  setIpAdapterStrength?: (val: number) => void;
+  florenceStrength?: number;
+  setFlorenceStrength?: (val: number) => void;
 }
 
-export const ImageUploadNodes: React.FC<ImageUploadNodesProps> = ({
+const ImageUploadNodes: React.FC<ImageUploadNodesProps> = ({
   controlNetImg,
+  setControlNetImg,
   ipAdapterImg,
+  setIpAdapterImg,
   florenceImg,
-  getRootCN,
-  getInputCN,
-  isDragCN,
-  getRootIP,
-  getInputIP,
-  isDragIP,
-  getRootFL,
-  getInputFL,
-  isDragFL,
-  clearControlNet,
-  clearIPAdapter,
-  clearFlorence,
-  ipAdapterStrength,
+  setFlorenceImg,
+  ipAdapterStrength = 0.8,
   setIpAdapterStrength,
-  florenceStrength,
+  florenceStrength = 0.8,
   setFlorenceStrength,
 }) => {
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const base64String = (reader.result as string).split(',')[1];
+        resolve(base64String);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const getImageDimensions = (file: File): Promise<{ width: number; height: number }> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const createDropHandler = (setter: (img: ImageFile | null) => void) => 
+    useCallback(async (acceptedFiles: File[]) => {
+      const file = acceptedFiles[0];
+      if (file) {
+        const base64 = await fileToBase64(file);
+        const dimensions = await getImageDimensions(file);
+        setter({ file, preview: URL.createObjectURL(file), base64, ...dimensions });
+      }
+    }, [setter]);
+
+  const { getRootProps: getRootCN, getInputProps: getInputCN, isDragActive: isDragCN } = useDropzone({ onDrop: createDropHandler(setControlNetImg), accept: { 'image/*': [] }, multiple: false } as any);
+  const { getRootProps: getRootIP, getInputProps: getInputIP, isDragActive: isDragIP } = useDropzone({ onDrop: createDropHandler(setIpAdapterImg), accept: { 'image/*': [] }, multiple: false } as any);
+  const { getRootProps: getRootFL, getInputProps: getInputFL, isDragActive: isDragFL } = useDropzone({ onDrop: createDropHandler(setFlorenceImg), accept: { 'image/*': [] }, multiple: false } as any);
+
+  const clearControlNet = () => setControlNetImg(null);
+  const clearIPAdapter = () => setIpAdapterImg(null);
+  const clearFlorence = () => setFlorenceImg(null);
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {/* ControlNet Node */}
@@ -152,7 +175,7 @@ export const ImageUploadNodes: React.FC<ImageUploadNodesProps> = ({
             max="1"
             step="0.1"
             value={ipAdapterStrength}
-            onChange={(e) => setIpAdapterStrength(parseFloat(e.target.value))}
+            onChange={(e) => setIpAdapterStrength?.(parseFloat(e.target.value))}
             disabled={!ipAdapterImg}
             className={`w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-purple-500 ${ipAdapterImg ? 'bg-zinc-800' : 'bg-zinc-900'}`}
           />
@@ -214,7 +237,7 @@ export const ImageUploadNodes: React.FC<ImageUploadNodesProps> = ({
             max="1"
             step="0.1"
             value={florenceStrength}
-            onChange={(e) => setFlorenceStrength(parseFloat(e.target.value))}
+            onChange={(e) => setFlorenceStrength?.(parseFloat(e.target.value))}
             disabled={!florenceImg}
             className={`w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-amber-500 ${florenceImg ? 'bg-zinc-800' : 'bg-zinc-900'}`}
           />
@@ -223,3 +246,5 @@ export const ImageUploadNodes: React.FC<ImageUploadNodesProps> = ({
     </div>
   );
 };
+
+export default ImageUploadNodes;
