@@ -174,7 +174,7 @@ export default function App() {
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4 font-sans text-white">
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 w-full max-w-md shadow-2xl text-center">
           <Shield className="w-12 h-12 text-indigo-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Kunwon AI</h1>
+          <h1 className="text-2xl font-bold mb-2">Sketch2 Render</h1>
           <p className="text-zinc-400 text-sm mb-6">Enter password to access ArchViz Engine</p>
           <form onSubmit={handlePasswordSubmit}>
             <input
