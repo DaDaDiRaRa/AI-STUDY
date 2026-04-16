@@ -124,28 +124,39 @@ export default function App() {
       if (isDepthEnabled) extractionTasks.push(processImageInBrowser(controlNetImg.base64, 'depth').then(res => depthBase64 = res));
       await Promise.all(extractionTasks);
 
+      // 2단계: 추출된 이미지들을 AI에게 보낼 프롬프트 덩어리(parts)로 조립
       const parts: any[] = [
-        { text: "TASK: High-end Architectural Visualization. Professional ArchViz. Strictly follow the provided structural guides." },
-        { text: "NODE 1 [Base Geometry]: The original building structure." },
+        { text: "TASK: High-end Architectural Visualization. Professional ArchViz.\nCRITICAL RULE: The camera angle, perspective, and overall composition MUST 100% match NODE 1, 2, and 3. NEVER change the original camera angle." },
+        
+        { text: "NODE 1 [Base Geometry]: The original building structure. Lock the camera to this exact view." },
         { inlineData: { data: controlNetImg.base64, mimeType: controlNetImg.file.type } },
       ];
 
+      // LINEART가 선택되었다면 AI에게 도면을 주입
       if (isLineartEnabled && lineartBase64) {
-        parts.push({ text: "NODE 2 [Lineart Constraint]: This is the exact CAD drawing. DO NOT distort window frames, balconies, or vertical lines." });
+        parts.push({ text: "NODE 2 [Lineart Constraint]: This is the exact CAD drawing. DO NOT distort window frames, balconies, or vertical lines. The final render must perfectly align with these lines." });
         parts.push({ inlineData: { data: lineartBase64, mimeType: 'image/jpeg' } });
       }
 
+      // DEPTH가 선택되었다면 AI에게 공간감/덩어리감을 주입
       if (isDepthEnabled && depthBase64) {
-        parts.push({ text: "NODE 3 [Depth/Massing Map]: This represents the 3D volume and distance. Use this to calculate realistic ambient occlusion." });
+        parts.push({ text: "NODE 3 [Depth/Massing Map]: Maintain this exact 3D volume, distance, and perspective. Do not alter the depth of field." });
         parts.push({ inlineData: { data: depthBase64, mimeType: 'image/jpeg' } });
       }
 
-      ipAdapterImg && parts.push({ text: `NODE 4 [Style]: ${getStrengthText(ipAdapterStrength, 'style')}` });
-      ipAdapterImg && parts.push({ inlineData: { data: ipAdapterImg.base64, mimeType: ipAdapterImg.file.type } });
-      
-      florenceImg && parts.push({ text: `NODE 5 [Context]: ${getStrengthText(florenceStrength, 'context')}` });
-      florenceImg && parts.push({ inlineData: { data: florenceImg.base64, mimeType: florenceImg.file.type } });
+      // [핵심 변경] Style 레퍼런스에는 "구도는 무시해라"는 경고 추가
+      if (ipAdapterImg) {
+        parts.push({ text: `NODE 4 [Style/Material Reference]: ${getStrengthText(ipAdapterStrength, 'style')}\nWARNING: Extract ONLY the textures, materials, and lighting colors. ABSOLUTELY IGNORE the camera angle, perspective, and building shape of this image.` });
+        parts.push({ inlineData: { data: ipAdapterImg.base64, mimeType: ipAdapterImg.file.type } });
+      }
 
+      // [핵심 변경] Context 레퍼런스에도 "구도는 무시해라"는 경고 추가
+      if (florenceImg) {
+        parts.push({ text: `NODE 5 [Context/Environment Reference]: ${getStrengthText(florenceStrength, 'context')}\nWARNING: Extract ONLY the sky, weather, and landscaping mood. ABSOLUTELY IGNORE the perspective and spatial layout of this image.` });
+        parts.push({ inlineData: { data: florenceImg.base64, mimeType: florenceImg.file.type } });
+      }
+
+      // 프롬프트 및 기존 노드 추가
       parts.push({ text: `POSITIVE PROMPT: ${positivePrompt} \nNEGATIVE PROMPT: ${negativePrompt}` });
 
       const response = await genAI.models.generateContent({
