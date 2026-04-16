@@ -83,7 +83,7 @@ const ImageUploadNodes: React.FC<ImageUploadNodesProps> = ({
       <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 flex flex-col">
         <div className="flex items-center gap-2 mb-3 text-zinc-300">
           <Layers className="w-4 h-4 text-blue-400" />
-          <h3 className="text-sm font-medium">ControlNet (Structure)</h3>
+          <h3 className="text-sm font-medium">원본 이미지</h3>
           <Tooltip text="건물의 뼈대를 결정합니다. 화이트 모델, 스케치, 혹은 도면 이미지를 넣어주세요. 구조는 그대로 유지됩니다.">
             <Info className="w-3.5 h-3.5 text-zinc-600 cursor-help" />
           </Tooltip>
