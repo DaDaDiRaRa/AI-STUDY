@@ -197,6 +197,12 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-100 font-sans pb-20">
       <main className="max-w-7xl mx-auto px-6 py-8">
+        <header className="mb-8 flex items-baseline gap-4">
+          <h1 className="text-3xl font-bold tracking-tight text-white">Sketch 2 Render</h1>
+          <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-wider">
+            © 2026 Junghyun Kim. All rights reserved.
+          </span>
+        </header>
         <div className="grid lg:grid-cols-12 gap-8">
           <div className="lg:col-span-7 space-y-6">
             <ImageUploadNodes 
