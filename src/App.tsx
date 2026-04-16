@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI } from "@google/genai";
-import { Loader2, Lock, Shield } from 'lucide-react';
+import { Loader2, Shield } from 'lucide-react';
 import ImageUploadNodes from './components/ImageUploadNodes';
 import SettingsPanel from './components/SettingsPanel';
 import PromptPanel from './components/PromptPanel';
 import PreviewCanvas from './components/PreviewCanvas';
 
 // --- Global Config ---
-const API_KEY = process.env.GEMINI_API_KEY || '';
+const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
 const genAI = new GoogleGenAI({ apiKey: API_KEY });
 
-// --- 브라우저 내부: 이미지 자동 추출기 (Method A) ---
+// --- 브라우저 내부: 이미지 자동 추출기 (Lineart / Depth) ---
 const processImageInBrowser = async (base64Img: string, mode: 'lineart' | 'depth'): Promise<string> => {
   return new Promise((resolve) => {
     const img = new Image();
@@ -56,18 +56,79 @@ const processImageInBrowser = async (base64Img: string, mode: 'lineart' | 'depth
   });
 };
 
+// --- [신규] 브라우저 내부: 무왜곡 패딩(아웃페인팅) 리사이즈 함수 ---
+const padImageToBase64 = async (base64Img: string, targetRatioStr: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      // 비율 계산 (예: "4:3" -> 4/3)
+      const [wRatio, hRatio] = targetRatioStr.split(':').map(Number);
+      const targetRatio = wRatio / hRatio;
+      const currentRatio = img.width / img.height;
+
+      let targetWidth = img.width;
+      let targetHeight = img.height;
+
+      // 이미 타겟 비율과 거의 일치하면 원본 반환
+      if (Math.abs(targetRatio - currentRatio) < 0.01) {
+        return resolve(base64Img);
+      }
+
+      // 비율을 맞추기 위해 도화지 크기 계산 (비율을 강제로 늘리지 않고 여백 추가)
+      if (currentRatio > targetRatio) {
+        // 이미지가 더 가로로 길 때 -> 세로 여백(위아래) 추가
+        targetHeight = targetWidth / targetRatio;
+      } else {
+        // 이미지가 더 세로로 길 때 -> 가로 여백(양옆) 추가
+        targetWidth = targetHeight * targetRatio;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return resolve(base64Img);
+
+      // 하얀색 배경으로 여백 채우기 (AI가 자연스럽게 하늘이나 땅으로 아웃페인팅함)
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+      // 원본 이미지를 정중앙에 배치
+      const dx = (targetWidth - img.width) / 2;
+      const dy = (targetHeight - img.height) / 2;
+      ctx.drawImage(img, dx, dy);
+
+      resolve(canvas.toDataURL('image/jpeg').split(',')[1]);
+    };
+    img.onerror = reject;
+    img.src = `data:image/jpeg;base64,${base64Img}`;
+  });
+};
+
+// --- 비율 계산 헬퍼 함수 (Gemini API 지원 비율로 고정) ---
+const getClosestAspectRatio = (width: number, height: number): string => {
+  const ratio = width / height;
+  const targets = [
+    { label: "1:1", value: 1 },
+    { label: "4:3", value: 4/3 },
+    { label: "3:4", value: 3/4 },
+    { label: "16:9", value: 16/9 },
+    { label: "9:16", value: 9/16 }
+  ];
+  return targets.reduce((prev, curr) => 
+    Math.abs(curr.value - ratio) < Math.abs(prev.value - ratio) ? curr : prev
+  ).label;
+};
+
 export default function App() {
-  // --- Auth State ---
   const [isAuthenticated, setIsAuthenticated] = useState(() => sessionStorage.getItem('site_auth') === 'true');
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState('');
 
-  // --- Node States ---
   const [controlNetImg, setControlNetImg] = useState<any>(null);
   const [ipAdapterImg, setIpAdapterImg] = useState<any>(null);
   const [florenceImg, setFlorenceImg] = useState<any>(null);
   
-  // --- Prompt & Settings States ---
   const [positivePrompt, setPositivePrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
   const [selectedModes, setSelectedModes] = useState<string[]>(['depth', 'lineart']);
@@ -75,7 +136,6 @@ export default function App() {
   const [seedValue, setSeedValue] = useState(42);
   const [temperature, setTemperature] = useState(0.7);
   
-  // 복구된 상태값들
   const [ipAdapterStrength, setIpAdapterStrength] = useState(0.8);
   const [florenceStrength, setFlorenceStrength] = useState(0.8);
   
@@ -83,7 +143,6 @@ export default function App() {
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // --- Password Handler ---
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordInput === '0908') {
@@ -102,7 +161,6 @@ export default function App() {
     return `Strictly apply (Maximum influence).`;
   };
 
-  // --- 핵심 렌더링 로직 ---
   const generateRendering = async () => {
     if (!controlNetImg) return setError("Please upload the Structure image.");
     if (!API_KEY) return setError("API key is missing.");
@@ -113,75 +171,73 @@ export default function App() {
     try {
       const currentSeed = seedMode === 'fixed' ? seedValue : Math.floor(Math.random() * 2147483647);
       
+      // 1. 제미나이 지원 비율 계산
+      const aspectRatio = getClosestAspectRatio(controlNetImg.width || 1, controlNetImg.height || 1);
+      
+      // 2. [핵심] 원본 이미지를 강제로 늘리지 않고 여백(Padding)을 주어 완벽한 비율로 맞춤
+      const paddedBaseImage = await padImageToBase64(controlNetImg.base64, aspectRatio);
+      
       const isLineartEnabled = selectedModes.includes('lineart');
       const isDepthEnabled = selectedModes.includes('depth');
       
       let lineartBase64 = null;
       let depthBase64 = null;
 
+      // 3. 비율이 완벽하게 맞춰진 이미지를 바탕으로 Depth와 Lineart를 추출함 (오차 제로)
       const extractionTasks = [];
-      if (isLineartEnabled) extractionTasks.push(processImageInBrowser(controlNetImg.base64, 'lineart').then(res => lineartBase64 = res));
-      if (isDepthEnabled) extractionTasks.push(processImageInBrowser(controlNetImg.base64, 'depth').then(res => depthBase64 = res));
+      if (isLineartEnabled) extractionTasks.push(processImageInBrowser(paddedBaseImage, 'lineart').then(res => lineartBase64 = res));
+      if (isDepthEnabled) extractionTasks.push(processImageInBrowser(paddedBaseImage, 'depth').then(res => depthBase64 = res));
       await Promise.all(extractionTasks);
 
-      // 2단계: 추출된 이미지들을 AI에게 보낼 프롬프트 덩어리(parts)로 조립
+      // 4. 프롬프트 조립 (구도 통제 강화 적용)
       const parts: any[] = [
-        { text: "TASK: High-end Architectural Visualization. Professional ArchViz.\nCRITICAL RULE: The camera angle, perspective, and overall composition MUST 100% match NODE 1, 2, and 3. NEVER change the original camera angle." },
+        { text: `TASK: Professional Architectural Visualization. 
+                 CRITICAL RULE: The camera angle, perspective, and overall composition MUST 100% match NODE 1. NEVER change the original camera angle.` },
         
-        { text: "NODE 1 [Base Geometry]: The original building structure. Lock the camera to this exact view." },
-        { inlineData: { data: controlNetImg.base64, mimeType: controlNetImg.file.type } },
+        { text: "NODE 1 [Base Geometry]: The padded original building structure. Do not stretch it. Fill the white/empty areas creatively based on the Context node." },
+        { inlineData: { data: paddedBaseImage, mimeType: 'image/jpeg' } },
       ];
 
-      // LINEART가 선택되었다면 AI에게 도면을 주입
       if (isLineartEnabled && lineartBase64) {
         parts.push({ text: "NODE 2 [Lineart Constraint]: This is the exact CAD drawing. DO NOT distort window frames, balconies, or vertical lines. The final render must perfectly align with these lines." });
         parts.push({ inlineData: { data: lineartBase64, mimeType: 'image/jpeg' } });
       }
 
-      // DEPTH가 선택되었다면 AI에게 공간감/덩어리감을 주입
       if (isDepthEnabled && depthBase64) {
-        parts.push({ text: "NODE 3 [Depth/Massing Map]: Maintain this exact 3D volume, distance, and perspective. Do not alter the depth of field." });
+        parts.push({ text: "NODE 3 [Depth/Massing Map]: Maintain this exact 3D volume, distance, and perspective." });
         parts.push({ inlineData: { data: depthBase64, mimeType: 'image/jpeg' } });
       }
 
-      // [핵심 변경] Style 레퍼런스에는 "구도는 무시해라"는 경고 추가
       if (ipAdapterImg) {
-        parts.push({ text: `NODE 4 [Style/Material Reference]: ${getStrengthText(ipAdapterStrength, 'style')}\nWARNING: Extract ONLY the textures, materials, and lighting colors. ABSOLUTELY IGNORE the camera angle, perspective, and building shape of this image.` });
+        parts.push({ text: `NODE 4 [Style]: ${getStrengthText(ipAdapterStrength, 'style')}\nWARNING: Extract ONLY colors and materials. ABSOLUTELY IGNORE the camera angle, perspective, and building shape of this image.` });
         parts.push({ inlineData: { data: ipAdapterImg.base64, mimeType: ipAdapterImg.file.type } });
       }
 
-      // [핵심 변경] Context 레퍼런스에도 "구도는 무시해라"는 경고 추가
       if (florenceImg) {
-        parts.push({ text: `NODE 5 [Context/Environment Reference]: ${getStrengthText(florenceStrength, 'context')}\nWARNING: Extract ONLY the sky, weather, and landscaping mood. ABSOLUTELY IGNORE the perspective and spatial layout of this image.` });
+        parts.push({ text: `NODE 5 [Context]: ${getStrengthText(florenceStrength, 'context')}\nWARNING: Extract ONLY sky, weather, and landscaping mood. ABSOLUTELY IGNORE the perspective and spatial layout of this image. Do not copy buildings from this image.` });
         parts.push({ inlineData: { data: florenceImg.base64, mimeType: florenceImg.file.type } });
       }
 
-      // 프롬프트 및 기존 노드 추가
       parts.push({ text: `POSITIVE PROMPT: ${positivePrompt} \nNEGATIVE PROMPT: ${negativePrompt}` });
 
       const response = await genAI.models.generateContent({
-        model: 'gemini-2.5-flash-image',
+        model: 'gemini-3.1-flash-image-preview',
         contents: { parts },
         config: { 
           seed: currentSeed, 
           temperature,
           imageConfig: {
-            aspectRatio: "1:1",
+            aspectRatio: aspectRatio as any, 
+            imageSize: "1K" // 고해상도 유지
           }
         } as any
       });
 
-      const candidate = response.candidates?.[0];
-      if (candidate?.finishReason === 'SAFETY') {
-        throw new Error("Generation blocked by safety filters. Please try a different prompt or image.");
-      }
-
-      const generatedImgPart = candidate?.content?.parts?.find((p: any) => p.inlineData)?.inlineData;
+      const generatedImgPart = response.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData;
       if (generatedImgPart) {
         setResultImage(`data:${generatedImgPart.mimeType};base64,${generatedImgPart.data}`);
       } else {
-        console.error("Full response:", response);
-        throw new Error("Generation failed. No image was returned by the model.");
+        throw new Error("Generation failed.");
       }
     } catch (err: any) {
       console.error(err);
@@ -191,13 +247,13 @@ export default function App() {
     }
   };
 
-  // 복구된 화면: 로그인 페이지
+  // --- UI ---
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4 font-sans text-white">
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 w-full max-w-md shadow-2xl text-center">
           <Shield className="w-12 h-12 text-indigo-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Sketch2 Render</h1>
+          <h1 className="text-2xl font-bold mb-2">Kunwon AI</h1>
           <p className="text-zinc-400 text-sm mb-6">Enter password to access ArchViz Engine</p>
           <form onSubmit={handlePasswordSubmit}>
             <input
@@ -205,7 +261,7 @@ export default function App() {
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
               placeholder="Password"
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 mb-4 text-center focus:outline-none focus:border-indigo-500"
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 mb-4 text-center focus:outline-none focus:border-indigo-500 tracking-widest"
             />
             {passwordError && <p className="text-red-400 text-sm mb-4">{passwordError}</p>}
             <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl font-bold transition-all">
@@ -220,12 +276,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-100 font-sans pb-20">
       <main className="max-w-7xl mx-auto px-6 py-8">
-        <header className="mb-8 flex items-baseline gap-4">
-          <h1 className="text-3xl font-bold tracking-tight text-white">Sketch 2 Render</h1>
-          <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-wider">
-            © 2026 Junghyun Kim. All rights reserved.
-          </span>
-        </header>
         <div className="grid lg:grid-cols-12 gap-8">
           <div className="lg:col-span-7 space-y-6">
             <ImageUploadNodes 
@@ -247,14 +297,17 @@ export default function App() {
             />
             <button
               onClick={generateRendering} disabled={!controlNetImg || isGenerating}
-              className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold uppercase text-white disabled:opacity-50"
+              className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold uppercase tracking-wide text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/20"
             >
-              {isGenerating ? "Executing KSampler (Extracting Maps...)" : "Queue Prompt"}
+              {isGenerating ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Executing Pipeline...</>
+              ) : (
+                "Queue Prompt"
+              )}
             </button>
-            {error && <p className="text-red-400 p-4 bg-red-900/20 rounded-xl">{error}</p>}
+            {error && <p className="text-red-400 p-4 bg-red-900/20 border border-red-900/50 rounded-xl text-sm">{error}</p>}
           </div>
           <div className="lg:col-span-5 relative">
-            {/* PreviewCanvas에는 인페인팅 및 다운로드 로직이 포함될 수 있도록 상태를 넘깁니다 */}
             <PreviewCanvas 
               resultImage={resultImage} setResultImage={setResultImage} 
               controlNetImg={controlNetImg}
