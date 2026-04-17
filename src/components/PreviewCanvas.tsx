@@ -229,22 +229,26 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           parts: [
             { inlineData: { data: resultImage.split(',')[1], mimeType: 'image/png' } },
             { inlineData: { data: maskBase64, mimeType: 'image/png' } },
-            { text: editPrompt || "Refine materials and lighting in the masked area." }
+            { text: `INPAINTING TASK: ${editPrompt || "Refine materials and lighting in the masked area."}. The second image is a mask (white/highlighted areas should be modified, others preserved). Output the full edited image.` }
           ]
         },
         config: {
-          editMode: 'inpainting-modify',
           seed: 42
         } as any
       });
 
-      const editedImgPart = response.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData;
+      const allParts = response.candidates?.[0]?.content?.parts || [];
+      const editedImgPart = allParts.find((p: any) => p.inlineData)?.inlineData;
+      const textResponse = allParts.find((p: any) => p.text)?.text;
+
       if (editedImgPart) {
         setHistory(prev => [...prev, resultImage]);
         const url = `data:${editedImgPart.mimeType};base64,${editedImgPart.data}`;
         setResultImage(url);
         setIsEditing(false);
         clearMask();
+      } else if (textResponse) {
+        console.warn("Inpainting model returned text instead of image:", textResponse);
       }
     } catch (err: any) {
       console.error("Inpainting error:", err);
@@ -278,17 +282,18 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         }
       });
 
-      let upscaledImg = null;
-      for (const part of response.candidates?.[0]?.content?.parts || []) {
-        if (part.inlineData) {
-          upscaledImg = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-          break;
-        }
-      }
-
-      if (upscaledImg) {
+      const allParts = response.candidates?.[0]?.content?.parts || [];
+      const upscaledImgPart = allParts.find((p: any) => p.inlineData)?.inlineData;
+      
+      if (upscaledImgPart) {
+        const upscaledUrl = `data:${upscaledImgPart.mimeType};base64,${upscaledImgPart.data}`;
         setHistory(prev => [...prev, resultImage]);
-        setResultImage(upscaledImg);
+        setResultImage(upscaledUrl);
+      } else {
+        const textResponse = allParts.find((p: any) => p.text)?.text;
+        if (textResponse) {
+          console.warn("Upscale model returned text instead of image:", textResponse);
+        }
       }
     } catch (err: any) {
       console.error("Upscale error:", err);
