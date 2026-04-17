@@ -206,15 +206,10 @@ export default function App() {
 
       const parts: any[] = [
         { text: `TASK: Professional Architectural Visualization. 
-                 STRICT RULES:
-                 1. 100% LOCK camera perspective to NODE 1.
-                 2. DO NOT stretch or distort geometry.
-                 3. Apply realistic architectural materials (glass, concrete, wood) based on STYLE node.
-                 4. Create environment (sky, landscape) based on CONTEXT node.
-                 5. Output ONLY the rendered image.` },
-        
-        { text: "NODE 1 [Base Geometry]: Original structure perspective truth." },
-        { inlineData: { data: paddedBaseImage, mimeType: 'image/jpeg' } },
+                 CRITICAL RULE: The camera angle, perspective, and overall composition MUST 100% match NODE 1. NEVER change the original camera angle.` },
+  
+        { text: "NODE 1 [Base Geometry]: The padded original building structure. DO NOT stretch the building to fill the frame. Fill the padded white areas ONLY with simple, unobtrusive background elements (e.g., plain sky, clouds, flat ground, simple grass/asphalt). ABSOLUTELY DO NOT extend the building's roof, walls, or architectural structures into the white padded areas." },
+       { inlineData: { data: paddedBaseImage, mimeType: 'image/jpeg' } },
       ];
 
       if (isLineartEnabled && lineartBase64) {
