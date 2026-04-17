@@ -5,6 +5,7 @@ import ImageUploadNodes from './components/ImageUploadNodes';
 import SettingsPanel from './components/SettingsPanel';
 import PromptPanel from './components/PromptPanel';
 import PreviewCanvas from './components/PreviewCanvas';
+import { QuickStyles, StylePreset } from './components/QuickStyles';
 
 // --- Global Config ---
 const API_KEY = process.env.GEMINI_API_KEY || '';
@@ -135,6 +136,24 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hasApiKey, setHasApiKey] = useState(true);
+
+  useEffect(() => {
+    const checkApiKey = async () => {
+      if ((window as any).aistudio?.hasSelectedApiKey) {
+        const selected = await (window as any).aistudio.hasSelectedApiKey();
+        setHasApiKey(selected);
+      }
+    };
+    checkApiKey();
+  }, []);
+
+  const handleOpenKeyDialog = async () => {
+    if ((window as any).aistudio?.openSelectKey) {
+      await (window as any).aistudio.openSelectKey();
+      setHasApiKey(true);
+    }
+  };
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,17 +175,24 @@ export default function App() {
 
   const generateRendering = async () => {
     if (!controlNetImg) return setError("Please upload the Structure image.");
-    if (!API_KEY) return setError("API key is missing.");
     
+    // Check for API key if using preview models
+    if (!hasApiKey && (window as any).aistudio) {
+      setError("Please select an API key to use high-quality rendering.");
+      return;
+    }
+
     setIsGenerating(true);
     setError(null);
 
     try {
+      // Re-initialize for fresh key
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      
       const currentSeed = seedMode === 'fixed' ? seedValue : Math.floor(Math.random() * 2147483647);
       const aspectRatio = getClosestAspectRatio(controlNetImg.width || 1, controlNetImg.height || 1);
       const paddedBaseImage = await padImageToBase64(controlNetImg.base64, aspectRatio);
       
-      // [핵심] 유저 UI와 상관없이 항상 Depth와 Lineart를 강제로 추출 및 적용합니다.
       const isLineartEnabled = true;
       const isDepthEnabled = true;
       
@@ -180,62 +206,83 @@ export default function App() {
 
       const parts: any[] = [
         { text: `TASK: Professional Architectural Visualization. 
-                 CRITICAL RULE: The camera angle, perspective, and overall composition MUST 100% match NODE 1. NEVER change the original camera angle.` },
+                 STRICT RULES:
+                 1. 100% LOCK camera perspective to NODE 1.
+                 2. DO NOT stretch or distort geometry.
+                 3. Apply realistic architectural materials (glass, concrete, wood) based on STYLE node.
+                 4. Create environment (sky, landscape) based on CONTEXT node.
+                 5. Output ONLY the rendered image.` },
         
-        { text: "NODE 1 [Base Geometry]: The padded original building structure. Do not stretch it. Fill the white/empty areas creatively based on the Context node." },
+        { text: "NODE 1 [Base Geometry]: Original structure perspective truth." },
         { inlineData: { data: paddedBaseImage, mimeType: 'image/jpeg' } },
       ];
 
       if (isLineartEnabled && lineartBase64) {
-        parts.push({ text: "NODE 2 [Lineart Constraint]: This is the exact CAD drawing. DO NOT distort window frames, balconies, or vertical lines. The final render must perfectly align with these lines." });
+        parts.push({ text: "NODE 2 [Lineart]: CAD boundaries." });
         parts.push({ inlineData: { data: lineartBase64, mimeType: 'image/jpeg' } });
       }
 
       if (isDepthEnabled && depthBase64) {
-        parts.push({ text: "NODE 3 [Depth/Massing Map]: Maintain this exact 3D volume, distance, and perspective." });
+        parts.push({ text: "NODE 3 [Depth]: Massing layout." });
         parts.push({ inlineData: { data: depthBase64, mimeType: 'image/jpeg' } });
       }
 
       if (ipAdapterImg) {
-        parts.push({ text: `NODE 4 [Style]: ${getStrengthText(ipAdapterStrength, 'style')}\nWARNING: Extract ONLY colors and materials. ABSOLUTELY IGNORE the camera angle, perspective, and building shape of this image.` });
+        parts.push({ text: `NODE 4 [Style]: Reference for materials/lighting. Strength: ${ipAdapterStrength}` });
         parts.push({ inlineData: { data: ipAdapterImg.base64, mimeType: ipAdapterImg.file.type } });
       }
 
       if (florenceImg) {
-        parts.push({ text: `NODE 5 [Context]: ${getStrengthText(florenceStrength, 'context')}\nWARNING: Extract ONLY sky, weather, and landscaping mood. ABSOLUTELY IGNORE the perspective and spatial layout of this image. Do not copy buildings from this image.` });
+        parts.push({ text: `NODE 5 [Context]: Reference for sky/landscape. Strength: ${florenceStrength}` });
         parts.push({ inlineData: { data: florenceImg.base64, mimeType: florenceImg.file.type } });
       }
 
-      parts.push({ text: `POSITIVE PROMPT: ${positivePrompt} \nNEGATIVE PROMPT: ${negativePrompt}` });
+      parts.push({ text: `POSITIVE PROMPT: ${positivePrompt || 'Modern architectural masterpiece, photorealistic, 8k, cinematic lighting'} \nNEGATIVE PROMPT: ${negativePrompt}` });
 
-      const response = await genAI.models.generateContent({
-        model: 'gemini-3.1-flash-image-preview',
-        contents: { parts },
-        config: { 
-          seed: currentSeed, 
-          temperature,
-          imageConfig: {
-            aspectRatio: aspectRatio as any, 
-            imageSize: "1K" 
-          }
-        } as any
-      });
+      // Primary Model: gemini-3.1-flash-image-preview for high quality
+      // Fallback: gemini-2.5-flash-image
+      let response;
+      try {
+        response = await ai.models.generateContent({
+          model: 'gemini-3.1-flash-image-preview',
+          contents: { parts },
+          config: { 
+            seed: currentSeed, 
+            temperature,
+            imageConfig: {
+              aspectRatio: aspectRatio as any, 
+              imageSize: "1K" 
+            }
+          } as any
+        });
+      } catch (e: any) {
+        console.warn("Primary model failed, trying fallback...", e);
+        response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash-image',
+          contents: { parts },
+          config: { seed: currentSeed, temperature } as any
+        });
+      }
 
       const candidate = response.candidates?.[0];
       if (candidate?.finishReason === 'SAFETY') {
-        throw new Error("Generation blocked by safety filters. Please try a different prompt or image.");
+        throw new Error("Generation blocked by safety filters. Please try a different prompt or less artistic style.");
       }
 
-      const generatedImgPart = candidate?.content?.parts?.find((p: any) => p.inlineData)?.inlineData;
+      const partsArray = candidate?.content?.parts || [];
+      const generatedImgPart = partsArray.find((p: any) => p.inlineData)?.inlineData;
+      const explanationText = partsArray.find((p: any) => p.text)?.text;
+
       if (generatedImgPart) {
-        setResultImage(`data:${generatedImgPart.mimeType};base64,${generatedImgPart.data}`);
+        setResultImage(`data:${generatedImgPart.mimeType || 'image/jpeg'};base64,${generatedImgPart.data}`);
+      } else if (explanationText) {
+        throw new Error(`Model Response: ${explanationText}`);
       } else {
-        console.error("Full response:", response);
-        throw new Error("Generation failed. No image was returned by the model.");
+        throw new Error("Generation failed: No image returned. The model may have had trouble interpreting the multi-node input.");
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "An error occurred.");
+      setError(err.message || "An error occurred during generation.");
     } finally {
       setIsGenerating(false);
     }
@@ -269,19 +316,18 @@ export default function App() {
   return (
     // [수정점] 가로세로 100% 꽉 채우고 메인 스크롤 없앰
     <div className="h-screen w-screen overflow-hidden bg-[#0a0a0a] text-zinc-100 font-sans flex flex-col">
-      <main className="flex-1 w-full h-full p-4 lg:p-6 grid lg:grid-cols-12 gap-6 min-h-0">
+      <main className="flex-1 w-full h-full p-4 lg:p-6 grid lg:grid-cols-12 items-start gap-6 min-h-0">
         
-        {/* --- 왼쪽 패널: 컨트롤 영역 --- */}
-        {/* [수정점] 27인치에서 한눈에 보이도록 약간 좁히고(col-span-4) 요소들을 압축 */}
-        <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-4 h-full overflow-y-auto pr-2 pb-2 
+        {/* --- Sidebar Panel: Assets, Settings, Prompts & Execute --- */}
+        <div className="lg:col-span-4 xl:col-span-4 flex flex-col gap-4 h-full overflow-y-auto pr-2 pb-2 
                         scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
           
-          <header className="flex flex-col gap-1 shrink-0 mb-2">
-            <h1 className="text-2xl font-bold tracking-tight text-white">Sketch 2 Render</h1>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-zinc-500 font-medium">for Exterior</span>
-              <span className="text-[9px] text-zinc-600 font-medium uppercase tracking-wider border-l border-zinc-800 pl-2">
-                © 2026. Junghyun Kim. All rights reserved.
+          <header className="flex flex-col gap-0.5 shrink-0">
+            <h1 className="text-lg font-bold tracking-tight text-white uppercase italic">Sketch 2 Render</h1>
+            <div className="flex items-center gap-1.5 leading-none mb-2">
+              <span className="text-[10px] text-zinc-500 font-bold">EXTERIOR EXPERT</span>
+              <span className="text-[7px] text-zinc-700 font-medium uppercase tracking-tighter border-l border-zinc-800 pl-1.5">
+                © 2026. Junghyun Kim
               </span>
             </div>
           </header>
@@ -298,29 +344,52 @@ export default function App() {
             seedMode={seedMode} setSeedMode={setSeedMode}
             seedValue={seedValue} setSeedValue={setSeedValue}
           />
-          <PromptPanel 
-            positivePrompt={positivePrompt} setPositivePrompt={setPositivePrompt}
-            negativePrompt={negativePrompt} setNegativePrompt={setNegativePrompt}
-          />
+
+          <div className="flex gap-2 min-h-0">
+            <div className="flex-[2] min-w-0">
+              <PromptPanel 
+                positivePrompt={positivePrompt} setPositivePrompt={setPositivePrompt}
+                negativePrompt={negativePrompt} setNegativePrompt={setNegativePrompt}
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <QuickStyles onSelect={(preset: StylePreset) => {
+                setPositivePrompt(preset.positive);
+                setNegativePrompt(preset.negative);
+              }} />
+            </div>
+          </div>
           
-          {/* 버튼이 화면 밖으로 밀리지 않도록 shrink-0 적용 */}
-          <button
-            onClick={generateRendering} disabled={!controlNetImg || isGenerating}
-            className="w-full py-3.5 shrink-0 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold uppercase tracking-wide text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/20"
-          >
-            {isGenerating ? (
-              <><Loader2 className="w-5 h-5 animate-spin" /> Executing Pipeline...</>
-            ) : (
-              "Queue Prompt"
+          <div className="space-y-4">
+            {!hasApiKey && (window as any).aistudio && (
+              <div className="p-3 bg-indigo-500/10 border border-indigo-500/30 rounded-xl">
+                <p className="text-[10px] text-indigo-300 mb-2">High-quality rendering requires a paid API key.</p>
+                <button 
+                  onClick={handleOpenKeyDialog}
+                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-bold rounded-lg transition-all"
+                >
+                  Select API Key
+                </button>
+              </div>
             )}
-          </button>
-          
-          {error && <p className="text-red-400 p-3 bg-red-900/20 border border-red-900/50 rounded-xl text-xs shrink-0">{error}</p>}
+            
+            <button
+              onClick={generateRendering} disabled={!controlNetImg || isGenerating}
+              className="w-full py-4 shrink-0 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold uppercase tracking-wide text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/20"
+            >
+              {isGenerating ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Executing Pipeline...</>
+              ) : (
+                "Queue Prompt"
+              )}
+            </button>
+            
+            {error && <p className="text-red-400 p-3 bg-red-900/20 border border-red-900/50 rounded-xl text-xs shrink-0">{error}</p>}
+          </div>
         </div>
 
         {/* --- 오른쪽 패널: 캔버스 영역 --- */}
-        {/* [수정점] 모니터의 남는 가로 공간(col-span-8)과 세로 높이를 100% 독차지 */}
-        <div className="lg:col-span-7 xl:col-span-8 h-full relative min-h-0">
+        <div className="lg:col-span-8 xl:col-span-8 h-full relative min-h-0">
           <PreviewCanvas 
             resultImage={resultImage} setResultImage={setResultImage} 
             controlNetImg={controlNetImg}
