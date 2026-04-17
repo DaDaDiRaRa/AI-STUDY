@@ -56,12 +56,11 @@ const processImageInBrowser = async (base64Img: string, mode: 'lineart' | 'depth
   });
 };
 
-// --- [신규] 브라우저 내부: 무왜곡 패딩(아웃페인팅) 리사이즈 함수 ---
+// --- 브라우저 내부: 무왜곡 패딩(아웃페인팅) 리사이즈 함수 ---
 const padImageToBase64 = async (base64Img: string, targetRatioStr: string): Promise<string> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      // 비율 계산 (예: "4:3" -> 4/3)
       const [wRatio, hRatio] = targetRatioStr.split(':').map(Number);
       const targetRatio = wRatio / hRatio;
       const currentRatio = img.width / img.height;
@@ -69,17 +68,13 @@ const padImageToBase64 = async (base64Img: string, targetRatioStr: string): Prom
       let targetWidth = img.width;
       let targetHeight = img.height;
 
-      // 이미 타겟 비율과 거의 일치하면 원본 반환
       if (Math.abs(targetRatio - currentRatio) < 0.01) {
         return resolve(base64Img);
       }
 
-      // 비율을 맞추기 위해 도화지 크기 계산 (비율을 강제로 늘리지 않고 여백 추가)
       if (currentRatio > targetRatio) {
-        // 이미지가 더 가로로 길 때 -> 세로 여백(위아래) 추가
         targetHeight = targetWidth / targetRatio;
       } else {
-        // 이미지가 더 세로로 길 때 -> 가로 여백(양옆) 추가
         targetWidth = targetHeight * targetRatio;
       }
 
@@ -89,11 +84,9 @@ const padImageToBase64 = async (base64Img: string, targetRatioStr: string): Prom
       const ctx = canvas.getContext('2d');
       if (!ctx) return resolve(base64Img);
 
-      // 하얀색 배경으로 여백 채우기 (AI가 자연스럽게 하늘이나 땅으로 아웃페인팅함)
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, targetWidth, targetHeight);
 
-      // 원본 이미지를 정중앙에 배치
       const dx = (targetWidth - img.width) / 2;
       const dy = (targetHeight - img.height) / 2;
       ctx.drawImage(img, dx, dy);
@@ -105,7 +98,6 @@ const padImageToBase64 = async (base64Img: string, targetRatioStr: string): Prom
   });
 };
 
-// --- 비율 계산 헬퍼 함수 (Gemini API 지원 비율로 고정) ---
 const getClosestAspectRatio = (width: number, height: number): string => {
   const ratio = width / height;
   const targets = [
@@ -131,7 +123,8 @@ export default function App() {
   
   const [positivePrompt, setPositivePrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
-  const [selectedModes, setSelectedModes] = useState<string[]>(['depth', 'lineart']);
+  
+  // UI에서 모드 선택이 사라졌으므로 상태값 삭제, 대신 백엔드에서 강제 고정
   const [seedMode, setSeedMode] = useState<'random' | 'fixed'>('random');
   const [seedValue, setSeedValue] = useState(42);
   const [temperature, setTemperature] = useState(0.7);
@@ -170,26 +163,21 @@ export default function App() {
 
     try {
       const currentSeed = seedMode === 'fixed' ? seedValue : Math.floor(Math.random() * 2147483647);
-      
-      // 1. 제미나이 지원 비율 계산
       const aspectRatio = getClosestAspectRatio(controlNetImg.width || 1, controlNetImg.height || 1);
-      
-      // 2. [핵심] 원본 이미지를 강제로 늘리지 않고 여백(Padding)을 주어 완벽한 비율로 맞춤
       const paddedBaseImage = await padImageToBase64(controlNetImg.base64, aspectRatio);
       
-      const isLineartEnabled = selectedModes.includes('lineart');
-      const isDepthEnabled = selectedModes.includes('depth');
+      // [핵심] 유저 UI와 상관없이 항상 Depth와 Lineart를 강제로 추출 및 적용합니다.
+      const isLineartEnabled = true;
+      const isDepthEnabled = true;
       
       let lineartBase64 = null;
       let depthBase64 = null;
 
-      // 3. 비율이 완벽하게 맞춰진 이미지를 바탕으로 Depth와 Lineart를 추출함 (오차 제로)
       const extractionTasks = [];
       if (isLineartEnabled) extractionTasks.push(processImageInBrowser(paddedBaseImage, 'lineart').then(res => lineartBase64 = res));
       if (isDepthEnabled) extractionTasks.push(processImageInBrowser(paddedBaseImage, 'depth').then(res => depthBase64 = res));
       await Promise.all(extractionTasks);
 
-      // 4. 프롬프트 조립 (구도 통제 강화 적용)
       const parts: any[] = [
         { text: `TASK: Professional Architectural Visualization. 
                  CRITICAL RULE: The camera angle, perspective, and overall composition MUST 100% match NODE 1. NEVER change the original camera angle.` },
@@ -253,7 +241,6 @@ export default function App() {
     }
   };
 
-  // --- UI ---
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4 font-sans text-white">
@@ -282,6 +269,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-100 font-sans pb-20">
       <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* 사용자님이 요청하신 소중한 헤더 (절대 지우지 않음!) */}
         <header className="mb-8 flex items-baseline gap-4">
           <h1 className="text-3xl font-bold tracking-tight text-white">Sketch 2 Render</h1>
           <div className="flex items-baseline gap-2">
@@ -300,8 +288,8 @@ export default function App() {
               ipAdapterStrength={ipAdapterStrength} setIpAdapterStrength={setIpAdapterStrength}
               florenceStrength={florenceStrength} setFlorenceStrength={setFlorenceStrength}
             />
+            {/* selectedModes 속성 제거됨 */}
             <SettingsPanel 
-              selectedModes={selectedModes} setSelectedModes={setSelectedModes}
               temperature={temperature} setTemperature={setTemperature}
               seedMode={seedMode} setSeedMode={setSeedMode}
               seedValue={seedValue} setSeedValue={setSeedValue}

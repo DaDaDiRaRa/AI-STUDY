@@ -1,11 +1,8 @@
 import React from 'react';
-import { Info, Settings2, Sparkles, Dices, RefreshCw } from 'lucide-react';
+import { Info, Sparkles, Dices, RefreshCw } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 
 interface SettingsPanelProps {
-  selectedModes: string[];
-  setSelectedModes?: (modes: string[]) => void;
-  toggleMode?: (mode: string) => void;
   temperature: number;
   setTemperature: (val: number) => void;
   seedMode: 'random' | 'fixed';
@@ -16,9 +13,6 @@ interface SettingsPanelProps {
 }
 
 const SettingsPanel: React.FC<SettingsPanelProps> = ({
-  selectedModes,
-  setSelectedModes,
-  toggleMode,
   temperature,
   setTemperature,
   seedMode,
@@ -27,63 +21,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   setSeedValue,
   lastUsedSeed = null,
 }) => {
-  const handleToggleMode = (mode: string) => {
-    if (toggleMode) {
-      toggleMode(mode);
-    } else if (setSelectedModes) {
-      setSelectedModes(
-        selectedModes.includes(mode)
-          ? selectedModes.filter((m) => m !== mode)
-          : [...selectedModes, mode]
-      );
-    }
-  };
-
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      {/* Multi-Control Mode Selector */}
-      <section className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Settings2 className="w-4 h-4 text-indigo-400" />
-          <h2 className="text-sm font-medium text-zinc-300 font-mono uppercase tracking-wider">Multi-Control Mode</h2>
-          <Tooltip text="AI가 구조를 해석하는 방식입니다. Depth는 입체감을, Lineart는 선을 위주로 봅니다. 보통 2개 이상 섞으면 정확도가 높습니다.">
-            <Info className="w-3.5 h-3.5 text-zinc-600 cursor-help" />
-          </Tooltip>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { id: 'depth', label: 'Depth', color: 'blue' },
-            { id: 'lineart', label: 'Lineart', color: 'purple' },
-            { id: 'segmentation', label: 'Segmentation', color: 'amber' },
-            { id: 'canny', label: 'Canny', color: 'red' }
-          ].map((mode) => {
-            const isActive = selectedModes.includes(mode.id);
-            const colorClasses = {
-              blue: isActive ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-400',
-              purple: isActive ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-400',
-              amber: isActive ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-400',
-              red: isActive ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-400'
-            }[mode.color as 'blue' | 'purple' | 'amber' | 'red'];
-
-            return (
-              <button
-                key={mode.id}
-                onClick={() => handleToggleMode(mode.id)}
-                className={`py-2 px-3 text-[10px] font-bold uppercase tracking-tighter rounded-lg border transition-all flex items-center justify-center gap-2 ${colorClasses}`}
-              >
-                <div className={`w-1.5 h-1.5 rounded-full ${isActive ? {
-                  blue: 'bg-blue-400',
-                  purple: 'bg-purple-400',
-                  amber: 'bg-amber-400',
-                  red: 'bg-red-400'
-                }[mode.color as 'blue' | 'purple' | 'amber' | 'red'] : 'bg-zinc-800'}`} />
-                {mode.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* Imagination Level (Temperature) */}
       <section className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-4">
         <div className="flex items-center gap-2 mb-4">
