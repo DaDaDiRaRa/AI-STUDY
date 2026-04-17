@@ -7,7 +7,7 @@ import PromptPanel from './components/PromptPanel';
 import PreviewCanvas from './components/PreviewCanvas';
 
 // --- Global Config ---
-const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+const API_KEY = process.env.GEMINI_API_KEY || '';
 const genAI = new GoogleGenAI({ apiKey: API_KEY });
 
 // --- 브라우저 내부: 이미지 자동 추출기 (Lineart / Depth) ---
@@ -228,16 +228,22 @@ export default function App() {
           temperature,
           imageConfig: {
             aspectRatio: aspectRatio as any, 
-            imageSize: "1K" // 고해상도 유지
+            imageSize: "1K" 
           }
         } as any
       });
 
-      const generatedImgPart = response.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData;
+      const candidate = response.candidates?.[0];
+      if (candidate?.finishReason === 'SAFETY') {
+        throw new Error("Generation blocked by safety filters. Please try a different prompt or image.");
+      }
+
+      const generatedImgPart = candidate?.content?.parts?.find((p: any) => p.inlineData)?.inlineData;
       if (generatedImgPart) {
         setResultImage(`data:${generatedImgPart.mimeType};base64,${generatedImgPart.data}`);
       } else {
-        throw new Error("Generation failed.");
+        console.error("Full response:", response);
+        throw new Error("Generation failed. No image was returned by the model.");
       }
     } catch (err: any) {
       console.error(err);
@@ -276,6 +282,15 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-100 font-sans pb-20">
       <main className="max-w-7xl mx-auto px-6 py-8">
+        <header className="mb-8 flex items-baseline gap-4">
+          <h1 className="text-3xl font-bold tracking-tight text-white">Sketch 2 Render</h1>
+          <div className="flex items-baseline gap-2">
+            <span className="text-lg text-zinc-500 font-medium">for Exterior</span>
+            <span className="text-[10px] text-zinc-600 font-medium uppercase tracking-wider">
+              © 2026. Junghyun Kim. All rights reserved.
+            </span>
+          </div>
+        </header>
         <div className="grid lg:grid-cols-12 gap-8">
           <div className="lg:col-span-7 space-y-6">
             <ImageUploadNodes 
