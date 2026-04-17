@@ -251,7 +251,7 @@ const PromptPanel: React.FC<PromptPanelProps> = ({
                 setPositivePrompt(e.target.value);
               }
             }}
-            className="w-full h-40 bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-xs font-mono text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors resize-none"
+            className="w-full h-24 bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-xs font-mono text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors resize-none"
             placeholder="Optional: Type here or leave blank for Auto-Pilot rendering..."
           />
           {showComparison && originalPositivePrompt && (

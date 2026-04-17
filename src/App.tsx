@@ -267,56 +267,66 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-zinc-100 font-sans pb-20">
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* 사용자님이 요청하신 소중한 헤더 (절대 지우지 않음!) */}
-        <header className="mb-8 flex items-baseline gap-4">
-          <h1 className="text-3xl font-bold tracking-tight text-white">Sketch 2 Render</h1>
-          <div className="flex items-baseline gap-2">
-            <span className="text-lg text-zinc-500 font-medium">for Exterior</span>
-            <span className="text-[10px] text-zinc-600 font-medium uppercase tracking-wider">
-              © 2026. Junghyun Kim. All rights reserved.
-            </span>
-          </div>
-        </header>
-        <div className="grid lg:grid-cols-12 gap-8">
-          <div className="lg:col-span-7 space-y-6">
-            <ImageUploadNodes 
-              controlNetImg={controlNetImg} setControlNetImg={setControlNetImg}
-              ipAdapterImg={ipAdapterImg} setIpAdapterImg={setIpAdapterImg}
-              florenceImg={florenceImg} setFlorenceImg={setFlorenceImg}
-              ipAdapterStrength={ipAdapterStrength} setIpAdapterStrength={setIpAdapterStrength}
-              florenceStrength={florenceStrength} setFlorenceStrength={setFlorenceStrength}
-            />
-            {/* selectedModes 속성 제거됨 */}
-            <SettingsPanel 
-              temperature={temperature} setTemperature={setTemperature}
-              seedMode={seedMode} setSeedMode={setSeedMode}
-              seedValue={seedValue} setSeedValue={setSeedValue}
-            />
-            <PromptPanel 
-              positivePrompt={positivePrompt} setPositivePrompt={setPositivePrompt}
-              negativePrompt={negativePrompt} setNegativePrompt={setNegativePrompt}
-            />
-            <button
-              onClick={generateRendering} disabled={!controlNetImg || isGenerating}
-              className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold uppercase tracking-wide text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/20"
-            >
-              {isGenerating ? (
-                <><Loader2 className="w-5 h-5 animate-spin" /> Executing Pipeline...</>
-              ) : (
-                "Queue Prompt"
-              )}
-            </button>
-            {error && <p className="text-red-400 p-4 bg-red-900/20 border border-red-900/50 rounded-xl text-sm">{error}</p>}
-          </div>
-          <div className="lg:col-span-5 relative">
-            <PreviewCanvas 
-              resultImage={resultImage} setResultImage={setResultImage} 
-              controlNetImg={controlNetImg}
-            />
-          </div>
+    // [수정점] 가로세로 100% 꽉 채우고 메인 스크롤 없앰
+    <div className="h-screen w-screen overflow-hidden bg-[#0a0a0a] text-zinc-100 font-sans flex flex-col">
+      <main className="flex-1 w-full h-full p-4 lg:p-6 grid lg:grid-cols-12 gap-6 min-h-0">
+        
+        {/* --- 왼쪽 패널: 컨트롤 영역 --- */}
+        {/* [수정점] 27인치에서 한눈에 보이도록 약간 좁히고(col-span-4) 요소들을 압축 */}
+        <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-4 h-full overflow-y-auto pr-2 pb-2 
+                        scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
+          
+          <header className="flex flex-col gap-1 shrink-0 mb-2">
+            <h1 className="text-2xl font-bold tracking-tight text-white">Sketch 2 Render</h1>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-zinc-500 font-medium">for Exterior</span>
+              <span className="text-[9px] text-zinc-600 font-medium uppercase tracking-wider border-l border-zinc-800 pl-2">
+                © 2026. Junghyun Kim. All rights reserved.
+              </span>
+            </div>
+          </header>
+
+          <ImageUploadNodes 
+            controlNetImg={controlNetImg} setControlNetImg={setControlNetImg}
+            ipAdapterImg={ipAdapterImg} setIpAdapterImg={setIpAdapterImg}
+            florenceImg={florenceImg} setFlorenceImg={setFlorenceImg}
+            ipAdapterStrength={ipAdapterStrength} setIpAdapterStrength={setIpAdapterStrength}
+            florenceStrength={florenceStrength} setFlorenceStrength={setFlorenceStrength}
+          />
+          <SettingsPanel 
+            temperature={temperature} setTemperature={setTemperature}
+            seedMode={seedMode} setSeedMode={setSeedMode}
+            seedValue={seedValue} setSeedValue={setSeedValue}
+          />
+          <PromptPanel 
+            positivePrompt={positivePrompt} setPositivePrompt={setPositivePrompt}
+            negativePrompt={negativePrompt} setNegativePrompt={setNegativePrompt}
+          />
+          
+          {/* 버튼이 화면 밖으로 밀리지 않도록 shrink-0 적용 */}
+          <button
+            onClick={generateRendering} disabled={!controlNetImg || isGenerating}
+            className="w-full py-3.5 shrink-0 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold uppercase tracking-wide text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/20"
+          >
+            {isGenerating ? (
+              <><Loader2 className="w-5 h-5 animate-spin" /> Executing Pipeline...</>
+            ) : (
+              "Queue Prompt"
+            )}
+          </button>
+          
+          {error && <p className="text-red-400 p-3 bg-red-900/20 border border-red-900/50 rounded-xl text-xs shrink-0">{error}</p>}
         </div>
+
+        {/* --- 오른쪽 패널: 캔버스 영역 --- */}
+        {/* [수정점] 모니터의 남는 가로 공간(col-span-8)과 세로 높이를 100% 독차지 */}
+        <div className="lg:col-span-7 xl:col-span-8 h-full relative min-h-0">
+          <PreviewCanvas 
+            resultImage={resultImage} setResultImage={setResultImage} 
+            controlNetImg={controlNetImg}
+          />
+        </div>
+        
       </main>
     </div>
   );
