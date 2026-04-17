@@ -179,43 +179,59 @@ export default function App() {
       await Promise.all(extractionTasks);
 
       const parts: any[] = [
-        { text: `TASK: Professional Architectural Visualization. 
-                 CRITICAL RULE: The camera angle, perspective, and overall composition MUST 100% match NODE 1. NEVER change the original camera angle.` },
+        { text: `TASK: HIGH-FIDELITY ARCHITECTURAL RENDERING. 
+                 DETERMINISTIC MODE: ON. 
+                 STRUCTURAL FIDELITY: 100%. 
+                 CRITICAL: The final render MUST align perfectly with the geometry of Node 1, 2, and 3.` },
         
-        { text: "NODE 1 [Base Geometry]: The padded original building structure. Do not stretch it. Fill the white/empty areas creatively based on the Context node." },
+        { text: "NODE 1 [Base Geometry]: The absolute source of truth for camera angle and perspective. This building shape and camera position must be locked." },
         { inlineData: { data: paddedBaseImage, mimeType: 'image/jpeg' } },
       ];
 
       if (isLineartEnabled && lineartBase64) {
-        parts.push({ text: "NODE 2 [Lineart Constraint]: This is the exact CAD drawing. DO NOT distort window frames, balconies, or vertical lines. The final render must perfectly align with these lines." });
+        parts.push({ text: "NODE 2 [Lineart Constraint]: STRICT BOUNDARY. Every edge in this image must be preserved. Do not add or remove structural lines." });
         parts.push({ inlineData: { data: lineartBase64, mimeType: 'image/jpeg' } });
       }
 
       if (isDepthEnabled && depthBase64) {
-        parts.push({ text: "NODE 3 [Depth/Massing Map]: Maintain this exact 3D volume, distance, and perspective." });
+        parts.push({ text: "NODE 3 [Depth/Massing Map]: Absolute spatial layout. Maintain this exact volume." });
         parts.push({ inlineData: { data: depthBase64, mimeType: 'image/jpeg' } });
       }
 
       if (ipAdapterImg) {
-        parts.push({ text: `NODE 4 [Style]: ${getStrengthText(ipAdapterStrength, 'style')}\nWARNING: Extract ONLY colors and materials. ABSOLUTELY IGNORE the camera angle, perspective, and building shape of this image.` });
+        parts.push({ text: `NODE 4 [Style Reference]: ${getStrengthText(ipAdapterStrength, 'style')}
+        CRITICAL WARNING: Extract ONLY Material/Color/Lighting. 
+        ABSOLUTELY IGNORE the building structure and camera angle of this Style image. 
+        If the style image has a building, DO NOT copy its shape.` });
         parts.push({ inlineData: { data: ipAdapterImg.base64, mimeType: ipAdapterImg.file.type } });
       }
 
       if (florenceImg) {
-        parts.push({ text: `NODE 5 [Context]: ${getStrengthText(florenceStrength, 'context')}\nWARNING: Extract ONLY sky, weather, and landscaping mood. ABSOLUTELY IGNORE the perspective and spatial layout of this image. Do not copy buildings from this image.` });
+        parts.push({ text: `NODE 5 [Environmental Context]: ${getStrengthText(florenceStrength, 'context')}
+        Extract ONLY Sky/Weather/Landscaping. 
+        DO NOT copy any buildings or architectural structures from this image.` });
         parts.push({ inlineData: { data: florenceImg.base64, mimeType: florenceImg.file.type } });
       }
 
-      parts.push({ text: `POSITIVE PROMPT: ${positivePrompt} \nNEGATIVE PROMPT: ${negativePrompt}` });
+      parts.push({ text: `USER PROMPT (Style Details): ${positivePrompt} \nNEGATIVE PROMPT: ${negativePrompt}` });
 
       const response = await genAI.models.generateContent({
         model: 'gemini-3.1-flash-image-preview',
         contents: { parts },
         config: { 
           systemInstruction: `You are a 'High-End Architectural Visualization (Arch-Viz) Engine' and a 'Deterministic ControlNet AI'. 
-          Your goal is to translate 3D structural guides into professional-grade, photorealistic exterior architectural renders. 
-          STRICTLY preserve current camera perspective and building proportions.
-          Output MUST BE A SINGLE IMAGE part.`,
+          Your goal is to translate 3D structural guides (SketchUp/CAD base) and stylistic references into professional-grade renders.
+
+          [NODE-Based Processing Protocols]
+          1. NODE 1 [Base Geometry]: The absolute source of truth for camera angle, perspective, and building proportion. You MUST naturally 'outpaint' empty padding with sky/landscaping. DO NOT stretch the building.
+          2. NODE 2 [Lineart]: Precise CAD boundaries. You are STRICTLY FORBIDDEN from drawing window frames, balconies, or vertical lines outside of these exact black edges.
+          3. NODE 3 [Depth]: 3D massing and spatial layout. Use this to calculate realistic ambient occlusion, shadows, and depth of field.
+          4. NODE 4 [Style]: Material and color reference. Extract ONLY the texture, reflectivity, and lighting tones. ABSOLUTELY IGNORE the building shape and camera angle of this image.
+          5. NODE 5 [Context]: Environmental reference. Extract ONLY sky, weather, and landscaping. DO NOT copy any architectural structures from this image.
+
+          [Quality Standards]
+          - Structural Fidelity: 100% Locked perspective. Zero tolerance for distorted geometry or misaligned windows.
+          - Visual Excellence: Global Illumination, realistic reflections, professional photography.`,
           seed: currentSeed, 
           temperature,
           imageConfig: {
@@ -257,7 +273,7 @@ export default function App() {
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4 font-sans text-white">
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 w-full max-w-md shadow-2xl text-center">
           <Shield className="w-12 h-12 text-indigo-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Kunwon AI</h1>
+          <h1 className="text-2xl font-bold mb-2">Sketch 2 Render</h1>
           <p className="text-zinc-400 text-sm mb-6">Enter password to access ArchViz Engine</p>
           <form onSubmit={handlePasswordSubmit}>
             <input
