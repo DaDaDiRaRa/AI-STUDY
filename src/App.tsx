@@ -179,59 +179,51 @@ export default function App() {
       await Promise.all(extractionTasks);
 
       const parts: any[] = [
+        { text: `SYSTEM INSTRUCTION: You are a 'High-End Architectural Visualization (Arch-Viz) Engine' and a 'Deterministic ControlNet AI'. 
+                 Your goal is to translate 3D structural guides (SketchUp/CAD base) and stylistic references into professional-grade renders.
+                 [NODE-Based Processing Protocols]
+                 1. NODE 1 [Base Geometry]: Absolute source for camera angle and perspective. Locked. Outpaint padding naturally.
+                 2. NODE 2 [Lineart]: CAD boundaries. STRICTLY FORBIDDEN to draw outside black edges.
+                 3. NODE 3 [Depth]: 3D massing. Maintain volume.
+                 4. NODE 4 [Style]: Extract Material/Color/Lighting ONLY. Ignore building shape.
+                 5. NODE 5 [Context]: Extract Environment ONLY. Do not copy buildings.
+                 [Quality] 100% Locked perspective. Zero tolerance for distortion. 
+                 TASK: Generate the rendering based on the following nodes.` },
+        
         { text: `TASK: HIGH-FIDELITY ARCHITECTURAL RENDERING. 
                  DETERMINISTIC MODE: ON. 
-                 STRUCTURAL FIDELITY: 100%. 
-                 CRITICAL: The final render MUST align perfectly with the geometry of Node 1, 2, and 3.` },
+                 STRUCTURAL FIDELITY: 100%.` },
         
-        { text: "NODE 1 [Base Geometry]: The absolute source of truth for camera angle and perspective. This building shape and camera position must be locked." },
+        { text: "NODE 1 [Base Geometry]: The source of truth for building shape and camera position." },
         { inlineData: { data: paddedBaseImage, mimeType: 'image/jpeg' } },
       ];
 
       if (isLineartEnabled && lineartBase64) {
-        parts.push({ text: "NODE 2 [Lineart Constraint]: STRICT BOUNDARY. Every edge in this image must be preserved. Do not add or remove structural lines." });
+        parts.push({ text: "NODE 2 [Lineart Constraint]: STRICT BOUNDARY. Every edge must be preserved." });
         parts.push({ inlineData: { data: lineartBase64, mimeType: 'image/jpeg' } });
       }
 
       if (isDepthEnabled && depthBase64) {
-        parts.push({ text: "NODE 3 [Depth/Massing Map]: Absolute spatial layout. Maintain this exact volume." });
+        parts.push({ text: "NODE 3 [Depth Map]: Maintain exact volume and perspective." });
         parts.push({ inlineData: { data: depthBase64, mimeType: 'image/jpeg' } });
       }
 
       if (ipAdapterImg) {
-        parts.push({ text: `NODE 4 [Style Reference]: ${getStrengthText(ipAdapterStrength, 'style')}
-        CRITICAL WARNING: Extract ONLY Material/Color/Lighting. 
-        ABSOLUTELY IGNORE the building structure and camera angle of this Style image. 
-        If the style image has a building, DO NOT copy its shape.` });
+        parts.push({ text: `NODE 4 [Style Reference]: Extract ONLY Material/Color/Lighting. Ignore building structure.` });
         parts.push({ inlineData: { data: ipAdapterImg.base64, mimeType: ipAdapterImg.file.type } });
       }
 
       if (florenceImg) {
-        parts.push({ text: `NODE 5 [Environmental Context]: ${getStrengthText(florenceStrength, 'context')}
-        Extract ONLY Sky/Weather/Landscaping. 
-        DO NOT copy any buildings or architectural structures from this image.` });
+        parts.push({ text: `NODE 5 [Environmental Context]: Extract ONLY Sky/Weather/Landscaping.` });
         parts.push({ inlineData: { data: florenceImg.base64, mimeType: florenceImg.file.type } });
       }
 
-      parts.push({ text: `USER PROMPT (Style Details): ${positivePrompt} \nNEGATIVE PROMPT: ${negativePrompt}` });
+      parts.push({ text: `USER PROMPT: ${positivePrompt} \nNEGATIVE PROMPT: ${negativePrompt}` });
 
       const response = await genAI.models.generateContent({
         model: 'gemini-3.1-flash-image-preview',
         contents: { parts },
         config: { 
-          systemInstruction: `You are a 'High-End Architectural Visualization (Arch-Viz) Engine' and a 'Deterministic ControlNet AI'. 
-          Your goal is to translate 3D structural guides (SketchUp/CAD base) and stylistic references into professional-grade renders.
-
-          [NODE-Based Processing Protocols]
-          1. NODE 1 [Base Geometry]: The absolute source of truth for camera angle, perspective, and building proportion. You MUST naturally 'outpaint' empty padding with sky/landscaping. DO NOT stretch the building.
-          2. NODE 2 [Lineart]: Precise CAD boundaries. You are STRICTLY FORBIDDEN from drawing window frames, balconies, or vertical lines outside of these exact black edges.
-          3. NODE 3 [Depth]: 3D massing and spatial layout. Use this to calculate realistic ambient occlusion, shadows, and depth of field.
-          4. NODE 4 [Style]: Material and color reference. Extract ONLY the texture, reflectivity, and lighting tones. ABSOLUTELY IGNORE the building shape and camera angle of this image.
-          5. NODE 5 [Context]: Environmental reference. Extract ONLY sky, weather, and landscaping. DO NOT copy any architectural structures from this image.
-
-          [Quality Standards]
-          - Structural Fidelity: 100% Locked perspective. Zero tolerance for distorted geometry or misaligned windows.
-          - Visual Excellence: Global Illumination, realistic reflections, professional photography.`,
           seed: currentSeed, 
           temperature,
           imageConfig: {
