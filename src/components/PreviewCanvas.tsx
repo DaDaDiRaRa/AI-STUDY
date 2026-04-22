@@ -450,15 +450,27 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           <div className="flex-1 bg-zinc-950 rounded-lg border border-zinc-800 overflow-hidden flex items-center justify-center relative group">
             <AnimatePresence mode="wait">
               {isUpscaling && (
-                <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
+                <motion.div 
+                  key="upscale-overlay"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4"
+                >
                   <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
                   <p className="text-xs font-bold text-zinc-300 uppercase tracking-widest animate-pulse">Enhancing to {upscaleTarget}...</p>
-                </div>
+                </motion.div>
               )}
               {resultImage ? (
-                <div className="relative w-full h-full overflow-hidden">
+                <motion.div 
+                  key="result-container"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="relative w-full h-full overflow-hidden"
+                >
                   {isEditing ? (
-                    <div className="relative w-full h-full flex items-center justify-center bg-black/20">
+                    <div key="edit-viewer" className="relative w-full h-full flex items-center justify-center bg-black/20">
                       <img
                         src={resultImage}
                         alt="To Edit"
@@ -480,7 +492,7 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                       />
                     </div>
                   ) : (
-                    <div className="relative w-full h-full overflow-hidden cursor-ew-resize flex items-center justify-center">
+                    <div key="comparison-viewer" className="relative w-full h-full overflow-hidden cursor-ew-resize flex items-center justify-center">
                       <div className="relative w-full h-full">
                         {/* Before (ControlNet Image) */}
                         <img
@@ -536,12 +548,13 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                       />
                     </div>
                   )}
-                </div>
+                </motion.div>
               ) : (
                 <motion.div
                   key="placeholder"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
                   className="flex flex-col items-center justify-center text-zinc-600 p-8 text-center"
                 >
                   <div className="w-12 h-12 bg-zinc-900 rounded flex items-center justify-center mb-4 border border-zinc-800">

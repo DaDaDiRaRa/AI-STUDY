@@ -97,18 +97,21 @@ const ImageUploadNodes: React.FC<ImageUploadNodesProps> = ({
             <>
               <img src={controlNetImg.preview} alt="ControlNet" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               <AnimatePresence>
-                <motion.button
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    clearControlNet();
-                  }}
-                  className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 hover:bg-red-500/80 text-white transition-colors z-10"
-                >
-                  <X className="w-4 h-4" />
-                </motion.button>
+                {controlNetImg && (
+                  <motion.button
+                    key="clear-cn"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      clearControlNet();
+                    }}
+                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 hover:bg-red-500/80 text-white transition-colors z-10"
+                  >
+                    <X className="w-4 h-4" />
+                  </motion.button>
+                )}
               </AnimatePresence>
             </>
           ) : (
@@ -138,18 +141,21 @@ const ImageUploadNodes: React.FC<ImageUploadNodesProps> = ({
             <>
               <img src={ipAdapterImg.preview} alt="IPAdapter" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               <AnimatePresence>
-                <motion.button
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    clearIPAdapter();
-                  }}
-                  className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 hover:bg-red-500/80 text-white transition-colors z-10"
-                >
-                  <X className="w-4 h-4" />
-                </motion.button>
+                {ipAdapterImg && (
+                  <motion.button
+                    key="clear-ip"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      clearIPAdapter();
+                    }}
+                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 hover:bg-red-500/80 text-white transition-colors z-10"
+                  >
+                    <X className="w-4 h-4" />
+                  </motion.button>
+                )}
               </AnimatePresence>
             </>
           ) : (
@@ -200,18 +206,21 @@ const ImageUploadNodes: React.FC<ImageUploadNodesProps> = ({
             <>
               <img src={florenceImg.preview} alt="Florence" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               <AnimatePresence>
-                <motion.button
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    clearFlorence();
-                  }}
-                  className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 hover:bg-red-500/80 text-white transition-colors z-10"
-                >
-                  <X className="w-4 h-4" />
-                </motion.button>
+                {florenceImg && (
+                  <motion.button
+                    key="clear-fl"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      clearFlorence();
+                    }}
+                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 hover:bg-red-500/80 text-white transition-colors z-10"
+                  >
+                    <X className="w-4 h-4" />
+                  </motion.button>
+                )}
               </AnimatePresence>
             </>
           ) : (
