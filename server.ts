@@ -36,11 +36,26 @@ async function startServer() {
       });
 
       const response = await result.response;
-      // We return the raw content to the client to parse
-      res.json(response);
+      
+      // Safety check: ensure response is serializable
+      // We extract the candidate content directly to avoid SDK object serialization issues
+      const resultData = {
+        candidates: response.candidates.map(c => ({
+          content: c.content,
+          finishReason: c.finishReason,
+          safetyRatings: c.safetyRatings,
+          index: c.index
+        })),
+        usageMetadata: response.usageMetadata
+      };
+
+      res.status(200).json(resultData);
     } catch (error: any) {
       console.error("Gemini Proxy Error:", error);
-      res.status(500).json({ error: error.message || "Internal Server Error" });
+      res.status(500).json({ 
+        error: error.message || "Internal Server Error",
+        details: typeof error === 'object' ? JSON.stringify(error) : String(error)
+      });
     }
   });
 
