@@ -92,7 +92,7 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   const [internalHistory, setInternalHistory] = useState<string[]>([]);
   const [internalEditPrompt, setInternalEditPrompt] = useState('');
   const [internalBrushSize, setInternalBrushSize] = useState(30);
-  const [internalBrushColor, setInternalBrushColor] = useState('rgba(57, 255, 20, 0.4)');
+  const [internalBrushColor, setInternalBrushColor] = useState('rgba(57, 255, 20, 0.8)');
   const [internalIsApplyingEdit, setInternalIsApplyingEdit] = useState(false);
   const [internalIsUpscaling, setInternalIsUpscaling] = useState(false);
   const [internalUpscaleTarget, setInternalUpscaleTarget] = useState<string | null>(null);
@@ -229,7 +229,12 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           parts: [
             { inlineData: { data: resultImage.split(',')[1], mimeType: 'image/png' } },
             { inlineData: { data: maskBase64, mimeType: 'image/png' } },
-            { text: `INPAINTING TASK: ${editPrompt || "Refine materials and lighting in the masked area."}. The second image is a mask (white/highlighted areas should be modified, others preserved). Output the full edited image.` }
+            { text: `STRICT SELECTIVE EDITING TASK: ${editPrompt || "Refine the materials of the building facade."}.
+                     CRITICAL INSTRUCTION:
+                     1. The second image is the EXCLUSIVE REPLACEMENT MASK. 
+                     2. You are STRICTLY FORBIDDEN from changing any parts of the image that are not highlighted/painted in the mask.
+                     3. ONLY the exact pixels I have painted should be modified. Every other pixel must be preserved with 100% fidelity.
+                     4. Treat the mask as the absolute boundary for your changes.` }
           ]
         },
         config: {
@@ -306,6 +311,7 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   return (
     <div className="lg:col-span-5 relative">
       <div className="sticky top-24">
+        {/* Main Result Display - Standard View */}
         <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-4 flex flex-col h-[calc(100vh-8rem)]">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -317,18 +323,14 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                 <>
                   <button
                     onClick={() => {
-                      setIsEditing(!isEditing);
-                      if (!isEditing) setShowComparison(false);
+                      setIsEditing(true);
+                      setShowComparison(false);
                     }}
-                    className={`p-1.5 rounded-md transition-all flex items-center gap-1.5 text-[10px] font-bold uppercase border ${
-                      isEditing 
-                        ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-400' 
-                        : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-100'
-                    }`}
-                    title="Edit Image (Inpainting)"
+                    className="p-1.5 rounded-md transition-all flex items-center gap-1.5 text-[10px] font-bold uppercase border bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-100"
+                    title="Open Large Editor"
                   >
                     <Pencil className="w-3 h-3" />
-                    {isEditing ? 'Exit Edit' : 'Edit'}
+                    Enter Focus Edit
                   </button>
                   {history.length > 0 && (
                     <button 
@@ -352,81 +354,7 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
             </div>
           </div>
 
-          {isEditing && (
-            <div className="mb-4 space-y-3">
-              <div className="p-4 bg-zinc-950 border border-indigo-500/30 rounded-xl shadow-lg shadow-indigo-500/5">
-                <div className="flex items-center gap-2 mb-2">
-                  <ScanText className="w-3 h-3 text-indigo-400" />
-                  <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Edit Instruction (What to change in the masked area?)</label>
-                </div>
-                <textarea
-                  ref={editPromptRef}
-                  value={editPrompt}
-                  onChange={(e) => setEditPrompt(e.target.value)}
-                  placeholder="Example: 'Change to a wooden door', 'Add a balcony', 'Change material to brick'..."
-                  className="w-full h-20 bg-zinc-900/50 border border-zinc-800 rounded-lg p-3 text-xs font-mono text-zinc-200 focus:outline-none focus:border-indigo-500/50 transition-all resize-none"
-                />
-              </div>
-
-              <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-lg flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-3 flex-1 min-w-[200px]">
-                  <span className="text-[10px] font-bold text-zinc-500 uppercase">Brush Size</span>
-                  <input 
-                    type="range" 
-                    min="5" 
-                    max="100" 
-                    value={brushSize} 
-                    onChange={(e) => setBrushSize(parseInt(e.target.value))}
-                    className="flex-1 accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
-                  />
-                  <span className="text-[10px] font-mono text-zinc-400 w-6">{brushSize}</span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-bold text-zinc-500 uppercase">Highlight</span>
-                  <div className="flex gap-1.5">
-                    {[
-                      { color: 'rgba(57, 255, 20, 0.4)', label: 'Green' },
-                      { color: 'rgba(255, 20, 147, 0.4)', label: 'Pink' },
-                      { color: 'rgba(0, 255, 255, 0.4)', label: 'Cyan' },
-                      { color: 'rgba(255, 69, 0, 0.4)', label: 'Orange' }
-                    ].map((c) => (
-                      <button
-                        key={c.color}
-                        onClick={() => setBrushColor(c.color)}
-                        className={`w-5 h-5 rounded-full border-2 transition-all ${brushColor === c.color ? 'border-white scale-110' : 'border-transparent hover:scale-105'}`}
-                        style={{ backgroundColor: c.color.replace('0.4', '1') }}
-                        title={c.label}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={clearMask}
-                    className="p-1.5 hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-zinc-100 transition-colors"
-                    title="Clear All"
-                  >
-                    <Eraser className="w-4 h-4" />
-                  </button>
-                  <button 
-                    onClick={applyInpainting}
-                    disabled={isApplyingEdit}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-bold uppercase flex items-center gap-2 transition-all disabled:opacity-50"
-                  >
-                    {isApplyingEdit ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                    Apply Edit
-                  </button>
-                </div>
-              </div>
-              <p className="text-[9px] text-zinc-500 font-medium italic px-1">
-                * The brush color is for your reference only; it will not affect the final image colors.
-              </p>
-            </div>
-          )}
-
-          {resultImage && !isEditing && (
+          {resultImage && (
             <div className="mb-4 p-3 bg-zinc-950 border border-zinc-800 rounded-lg">
               <div className="flex items-center gap-2 mb-3">
                 <Maximize2 className="w-3 h-3 text-zinc-500" />
@@ -467,87 +395,48 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="relative w-full h-full overflow-hidden"
+                  className="relative w-full h-full overflow-hidden cursor-ew-resize flex items-center justify-center"
                 >
-                  {isEditing ? (
-                    <div key="edit-viewer" className="relative w-full h-full flex items-center justify-center bg-black/20">
+                  <div className="relative w-full h-full">
+                    <img
+                      src={controlNetImg?.preview}
+                      alt="Before"
+                      className="absolute inset-0 w-full h-full object-contain opacity-50 grayscale"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div 
+                      className="absolute inset-0 w-full h-full overflow-hidden"
+                      style={{ clipPath: `inset(0 ${100 - comparisonValue}% 0 0)` }}
+                    >
                       <img
                         src={resultImage}
-                        alt="To Edit"
-                        className="max-w-full max-h-full object-contain pointer-events-none"
+                        alt="After"
+                        className="absolute inset-0 w-full h-full object-contain"
                         referrerPolicy="no-referrer"
                       />
-                      <canvas
-                        ref={canvasRef}
-                        onMouseDown={startDrawing}
-                        onMouseMove={draw}
-                        onMouseUp={stopDrawing}
-                        onMouseLeave={stopDrawing}
-                        onTouchStart={startDrawing}
-                        onTouchMove={draw}
-                        onTouchEnd={stopDrawing}
-                        width={canvasSize.width}
-                        height={canvasSize.height}
-                        className="absolute inset-0 w-full h-full object-contain cursor-crosshair touch-none"
-                      />
                     </div>
-                  ) : (
-                    <div key="comparison-viewer" className="relative w-full h-full overflow-hidden cursor-ew-resize flex items-center justify-center">
-                      <div className="relative w-full h-full">
-                        {/* Before (ControlNet Image) */}
-                        <img
-                          src={controlNetImg?.preview}
-                          alt="Before"
-                          className="absolute inset-0 w-full h-full object-contain opacity-50 grayscale"
-                          referrerPolicy="no-referrer"
-                        />
-                        
-                        {/* After (Result Image) */}
-                        <div 
-                          className="absolute inset-0 w-full h-full overflow-hidden"
-                          style={{ clipPath: `inset(0 ${100 - comparisonValue}% 0 0)` }}
-                        >
-                          <img
-                            src={resultImage}
-                            alt="After"
-                            className="absolute inset-0 w-full h-full object-contain"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-
-                        {/* Slider Handle */}
-                        <div 
-                          className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_10px_rgba(0,0,0,0.5)] z-10"
-                          style={{ left: `${comparisonValue}%` }}
-                        >
-                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full shadow-xl flex items-center justify-center border-4 border-zinc-900">
-                            <div className="flex gap-0.5">
-                              <div className="w-0.5 h-3 bg-zinc-400 rounded-full" />
-                              <div className="w-0.5 h-3 bg-zinc-400 rounded-full" />
-                            </div>
-                          </div>
+                    <div 
+                      className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_10px_rgba(0,0,0,0.5)] z-10"
+                      style={{ left: `${comparisonValue}%` }}
+                    >
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full shadow-xl flex items-center justify-center border-4 border-zinc-900">
+                        <div className="flex gap-0.5">
+                          <div className="w-0.5 h-3 bg-zinc-400 rounded-full" />
+                          <div className="w-0.5 h-3 bg-zinc-400 rounded-full" />
                         </div>
                       </div>
-
-                      {/* Labels */}
-                      <div className="absolute bottom-4 left-4 px-2 py-1 bg-black/50 backdrop-blur-md rounded text-[10px] font-bold text-white uppercase tracking-widest border border-white/10 pointer-events-none z-30">
-                        Structure
-                      </div>
-                      <div className="absolute bottom-4 right-4 px-2 py-1 bg-indigo-500/50 backdrop-blur-md rounded text-[10px] font-bold text-white uppercase tracking-widest border border-indigo-500/30 pointer-events-none z-30">
-                        Render
-                      </div>
-
-                      {/* Invisible Input for Slider Control */}
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={comparisonValue}
-                        onChange={(e) => setComparisonValue(parseInt(e.target.value))}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-40"
-                      />
                     </div>
-                  )}
+                  </div>
+                  <div className="absolute bottom-4 left-4 px-2 py-1 bg-black/50 backdrop-blur-md rounded text-[10px] font-bold text-white uppercase tracking-widest border border-white/10 pointer-events-none z-30">Structure</div>
+                  <div className="absolute bottom-4 right-4 px-2 py-1 bg-indigo-500/50 backdrop-blur-md rounded text-[10px] font-bold text-white uppercase tracking-widest border border-indigo-500/30 pointer-events-none z-30">Render</div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={comparisonValue}
+                    onChange={(e) => setComparisonValue(parseInt(e.target.value))}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-40"
+                  />
                 </motion.div>
               ) : (
                 <motion.div
@@ -577,6 +466,153 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           </div>
         </div>
       </div>
+
+      {/* LARGE FOCUS EDITOR OVERLAY */}
+      <AnimatePresence>
+        {isEditing && resultImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-zinc-950 flex flex-col p-6 items-center overflow-hidden"
+          >
+            {/* Header / Actions */}
+            <div className="w-full max-w-[1600px] flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-500/20 rounded-lg">
+                  <Pencil className="w-5 h-5 text-indigo-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white tracking-tight">Focus Edit Mode</h2>
+                  <p className="text-xs text-zinc-500 font-medium tracking-wide font-mono uppercase">Inpainting & Masking Engine</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={clearMask}
+                  className="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all"
+                >
+                  <Eraser className="w-4 h-4" />
+                  Clear Mask
+                </button>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={applyInpainting}
+                  disabled={isApplyingEdit}
+                  className="flex items-center gap-2 px-6 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20"
+                >
+                  {isApplyingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  Generate Edit
+                </button>
+              </div>
+            </div>
+
+            <div className="w-full max-w-[1600px] flex-1 flex gap-8 min-h-0">
+              {/* Left Column: Canvas (Large) */}
+              <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden relative flex items-center justify-center p-8">
+                <div 
+                  className="relative max-w-full max-h-full shadow-2xl rounded-lg overflow-hidden group border border-white/5"
+                  style={{ 
+                    aspectRatio: controlNetImg ? `${controlNetImg.width} / ${controlNetImg.height}` : 'auto',
+                    width: controlNetImg ? (controlNetImg.width > controlNetImg.height ? '100%' : 'auto') : 'auto',
+                    height: controlNetImg ? (controlNetImg.height >= controlNetImg.width ? '100%' : 'auto') : 'auto'
+                  }}
+                >
+                  <img
+                    src={resultImage}
+                    alt="To Edit"
+                    className="w-full h-full object-contain"
+                    referrerPolicy="no-referrer"
+                  />
+                  <canvas
+                    ref={canvasRef}
+                    onMouseDown={startDrawing}
+                    onMouseMove={draw}
+                    onMouseUp={stopDrawing}
+                    onMouseLeave={stopDrawing}
+                    onTouchStart={startDrawing}
+                    onTouchMove={draw}
+                    onTouchEnd={stopDrawing}
+                    width={canvasSize.width}
+                    height={canvasSize.height}
+                    className="absolute inset-0 w-full h-full object-contain cursor-crosshair touch-none"
+                  />
+                </div>
+              </div>
+
+              {/* Right Column: Controls */}
+              <div className="w-80 space-y-6">
+                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-6">
+                  <div>
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-3 block">Instruction</label>
+                    <textarea
+                      ref={editPromptRef}
+                      value={editPrompt}
+                      onChange={(e) => setEditPrompt(e.target.value)}
+                      placeholder="e.g. 'Add a wooden balcony here', 'Change to a glass facade'..."
+                      className="w-full h-32 bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-xs font-mono text-white focus:outline-none focus:border-indigo-500/50 transition-all resize-none leading-relaxed"
+                    />
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">Brush Size</label>
+                      <span className="text-[10px] font-mono text-indigo-400 font-bold">{brushSize}px</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="5" 
+                      max="150" 
+                      value={brushSize} 
+                      onChange={(e) => setBrushSize(parseInt(e.target.value))}
+                      className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] block">Brush Color</label>
+                    <div className="flex gap-2.5">
+                      {[
+                        { color: 'rgba(57, 255, 20, 0.8)', label: 'Green' },
+                        { color: 'rgba(255, 20, 147, 0.8)', label: 'Pink' },
+                        { color: 'rgba(0, 255, 255, 0.8)', label: 'Cyan' }
+                      ].map((c) => (
+                        <button
+                          key={c.color}
+                          onClick={() => setBrushColor(c.color)}
+                          className={`w-8 h-8 rounded-full border-4 transition-all flex items-center justify-center ${brushColor === c.color ? 'border-white scale-110 shadow-lg shadow-white/10' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                          style={{ backgroundColor: c.color.replace('0.8', '1') }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-indigo-500/5 border border-indigo-500/10 rounded-xl">
+                    <div className="flex items-start gap-2 text-[10px] text-indigo-300 font-medium leading-relaxed">
+                      <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      Tip: 마스크 영역은 수정될 곳이며, 브러시 색상은 작업 편의를 위한 시각적 요소입니다.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Footer Status */}
+            <div className="mt-6 flex items-center gap-6 text-[10px] font-mono font-bold text-zinc-600 uppercase tracking-widest">
+              <span>Ready for Processing</span>
+              <div className="w-1 h-1 rounded-full bg-zinc-800"></div>
+              <span>Hardware Acceleration Enabled</span>
+              <div className="w-1 h-1 rounded-full bg-zinc-800"></div>
+              <span>Gemini 3.1 Advanced Arch-Inpainter</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -194,7 +194,7 @@ export default function App() {
                  DETERMINISTIC MODE: ON. 
                  STRUCTURAL FIDELITY: 100%.` },
         
-        { text: "NODE 1 [Base Geometry]: The source of truth for building shape and camera position." },
+        { text: "NODE 1 [Base Geometry]: The padded original building structure. DO NOT stretch the building. Keep the white padded areas COMPLETELY PURE WHITE. ABSOLUTELY DO NOT draw any sky, ground, landscape, or building extensions into the white padding. Treat the white areas as untouchable blank margins." },
         { inlineData: { data: paddedBaseImage, mimeType: 'image/jpeg' } },
       ];
 
