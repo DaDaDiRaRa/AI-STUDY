@@ -1,9 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { GoogleGenAI } from "@google/genai";
 import { Loader2, Shield } from 'lucide-react';
 import ImageUploadNodes from './components/ImageUploadNodes';
 import SettingsPanel from './components/SettingsPanel';
 import PromptPanel from './components/PromptPanel';
 import PreviewCanvas from './components/PreviewCanvas';
+
+// --- Global Config ---
+const API_KEY = process.env.GEMINI_API_KEY || '';
+const genAI = new GoogleGenAI({ apiKey: API_KEY });
 
 // --- 브라우저 내부: 이미지 자동 추출기 (Lineart / Depth) ---
 const processImageInBrowser = async (base64Img: string, mode: 'lineart' | 'depth'): Promise<string> => {
@@ -151,6 +156,7 @@ export default function App() {
 
   const generateRendering = async () => {
     if (!controlNetImg) return setError("Please upload the Structure image.");
+    if (!API_KEY) return setError("API key is missing.");
     
     setIsGenerating(true);
     setError(null);
@@ -214,35 +220,25 @@ export default function App() {
 
       parts.push({ text: `USER PROMPT: ${positivePrompt} \nNEGATIVE PROMPT: ${negativePrompt}` });
 
-      const res = await fetch("/api/proxy-gemini", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: 'gemini-3.1-flash-image-preview',
-          contents: [{ parts }],
-          config: { 
-            seed: currentSeed, 
-            temperature,
-            imageConfig: {
-              aspectRatio: aspectRatio as any, 
-              imageSize: "1K" 
-            }
+      const response = await genAI.models.generateContent({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: { parts },
+        config: { 
+          seed: currentSeed, 
+          temperature,
+          imageConfig: {
+            aspectRatio: aspectRatio as any, 
+            imageSize: "1K" 
           }
-        })
+        } as any
       });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to generate rendering.");
-      }
-
-      const response = await res.json();
       const candidate = response.candidates?.[0];
-      
       if (candidate?.finishReason === 'SAFETY') {
         throw new Error("Generation blocked by safety filters. Please try a different prompt or image.");
       }
 
+      // Check all parts for image data
       const allParts = candidate?.content?.parts || [];
       const generatedImgPart = allParts.find((p: any) => p.inlineData)?.inlineData;
       const textResponse = allParts.filter((p: any) => p.text).map((p: any) => p.text).join('\n');
@@ -253,7 +249,8 @@ export default function App() {
         console.warn("Model returned text instead of image:", textResponse);
         throw new Error(`Model returned text but no image: ${textResponse}`);
       } else {
-        throw new Error("Generation failed. No image or text was returned by the model.");
+        console.error("Full response:", JSON.stringify(response, null, 2));
+        throw new Error("Generation failed. No image or text was returned by the model. Check console for details.");
       }
     } catch (err: any) {
       console.error(err);
