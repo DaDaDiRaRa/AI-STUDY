@@ -12,7 +12,6 @@ import {
   Maximize2, 
   Info 
 } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
 
 interface ImageFile {
   file: File;
@@ -124,9 +123,6 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   const comparisonValue = propsComparisonValue !== undefined ? propsComparisonValue : internalComparisonValue;
   const setComparisonValue = propsSetComparisonValue || setInternalComparisonValue;
 
-  const API_KEY = process.env.GEMINI_API_KEY || '';
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
-
   useEffect(() => {
     if (controlNetImg?.width && controlNetImg?.height) {
       const ratio = controlNetImg.width / controlNetImg.height;
@@ -223,25 +219,35 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     try {
       const maskBase64 = canvasRef.current.toDataURL('image/png').split(',')[1];
       
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-image-preview',
-        contents: {
-          parts: [
-            { inlineData: { data: resultImage.split(',')[1], mimeType: 'image/png' } },
-            { inlineData: { data: maskBase64, mimeType: 'image/png' } },
-            { text: `STRICT SELECTIVE EDITING TASK: ${editPrompt || "Refine the materials of the building facade."}.
-                     CRITICAL INSTRUCTION:
-                     1. The second image is the EXCLUSIVE REPLACEMENT MASK. 
-                     2. You are STRICTLY FORBIDDEN from changing any parts of the image that are not highlighted/painted in the mask.
-                     3. ONLY the exact pixels I have painted should be modified. Every other pixel must be preserved with 100% fidelity.
-                     4. Treat the mask as the absolute boundary for your changes.` }
-          ]
-        },
-        config: {
-          seed: 42
-        } as any
+      const res = await fetch("/api/proxy-gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: 'gemini-3.1-flash-image-preview',
+          contents: [{
+            parts: [
+              { inlineData: { data: resultImage.split(',')[1], mimeType: 'image/png' } },
+              { inlineData: { data: maskBase64, mimeType: 'image/png' } },
+              { text: `STRICT SELECTIVE EDITING TASK: ${editPrompt || "Refine the materials of the building facade."}.
+                       CRITICAL INSTRUCTION:
+                       1. The second image is the EXCLUSIVE REPLACEMENT MASK. 
+                       2. You are STRICTLY FORBIDDEN from changing any parts of the image that are not highlighted/painted in the mask.
+                       3. ONLY the exact pixels I have painted should be modified. Every other pixel must be preserved with 100% fidelity.
+                       4. Treat the mask as the absolute boundary for your changes.` }
+            ]
+          }],
+          config: {
+            seed: 42
+          }
+        })
       });
 
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to apply edit.");
+      }
+
+      const response = await res.json();
       const allParts = response.candidates?.[0]?.content?.parts || [];
       const editedImgPart = allParts.find((p: any) => p.inlineData)?.inlineData;
       const textResponse = allParts.find((p: any) => p.text)?.text;
@@ -272,21 +278,31 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     try {
       const base64 = resultImage.split(',')[1];
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-image-preview',
-        contents: {
-          parts: [
-            { inlineData: { data: base64, mimeType: 'image/png' } },
-            { text: `Enhance and upscale this architectural rendering to ${resolution} resolution. Maintain all details, textures, and lighting perfectly while increasing clarity and sharpness.` }
-          ]
-        },
-        config: {
-          imageConfig: {
-            imageSize: resolution as any
+      const res = await fetch("/api/proxy-gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: 'gemini-3.1-flash-image-preview',
+          contents: [{
+            parts: [
+              { inlineData: { data: base64, mimeType: 'image/png' } },
+              { text: `Enhance and upscale this architectural rendering to ${resolution} resolution. Maintain all details, textures, and lighting perfectly while increasing clarity and sharpness.` }
+            ]
+          }],
+          config: {
+            imageConfig: {
+              imageSize: resolution as any
+            }
           }
-        }
+        })
       });
 
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to upscale.");
+      }
+
+      const response = await res.json();
       const allParts = response.candidates?.[0]?.content?.parts || [];
       const upscaledImgPart = allParts.find((p: any) => p.inlineData)?.inlineData;
       
